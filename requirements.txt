@@ -2,9 +2,9 @@ flask
 flask-socketio
 gevent
 gevent-websocket
-mediapipe
+mediapipe==0.10.14
 opencv-python-headless
-numpy
+numpy<2.0.0
 mysql-connector-python
 python-dotenv
 werkzeug
