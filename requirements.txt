@@ -1,11 +1,11 @@
 flask
-pyttsx3
-opencv-python
-mediapipe
-numpy
 flask-socketio
+gevent
+gevent-websocket
+mediapipe
+opencv-python-headless
+numpy
 mysql-connector-python
+python-dotenv
 werkzeug
 gunicorn
-eventlet
-python-dotenv
