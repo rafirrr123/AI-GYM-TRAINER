@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tutorial - AI Gym Trainer</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" 
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #e0e0e0;
+      background: 
+        linear-gradient(rgba(10, 12, 16, 0.88), rgba(10, 12, 16, 0.94)),
+        url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat fixed;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px 0;
+    }
+
+    .wizard-card {
+      background: rgba(24, 28, 36, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65);
+      width: 100%;
+      max-width: 680px;
+      overflow: hidden;
+    }
+
+    /* Stepper Indicators */
+    .step-indicator-wrapper {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin-bottom: 30px;
+    }
+
+    .step-indicator-wrapper::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      height: 3px;
+      width: 100%;
+      background: #282f3d;
+      z-index: 1;
+    }
+
+    .step-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #181c24;
+      border: 2px solid #282f3d;
+      color: #777;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      z-index: 2;
+      transition: all 0.3s ease;
+    }
+
+    .step-dot.active {
+      border-color: #00ff88;
+      background: #00ff88;
+      color: #0f1115;
+      box-shadow: 0 0 18px rgba(0, 255, 136, 0.45);
+    }
+
+    .step-dot.completed {
+      border-color: #00ff88;
+      background: #181c24;
+      color: #00ff88;
+    }
+
+    /* Step Panels */
+    .step-content {
+      display: none;
+      min-height: 290px;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .step-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge-angle {
+      background: rgba(0, 255, 136, 0.12);
+      border: 1px solid #00ff88;
+      color: #00ff88;
+      font-family: monospace;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .info-box {
+      background: rgba(15, 17, 21, 0.7);
+      border-radius: 10px;
+      border: 1px solid #282f3d;
+      padding: 16px;
+    }
+
+    /* Buttons */
+    .btn-brand {
+      background-color: #00ff88;
+      color: #0f1115;
+      font-weight: 700;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-brand:hover {
+      background-color: #00cc6a;
+      color: #000;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.35);
+    }
+
+    .btn-secondary-custom {
+      background-color: #282f3d;
+      color: #e0e0e0;
+      font-weight: 600;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary-custom:hover {
+      background-color: #384255;
+      color: #fff;
+    }
+
+    /* Animated Glowing Launch Button on Step 4 */
+    .btn-launch {
+      display: inline-block;
+      width: 100%;
+      background: linear-gradient(135deg, #00ff88 0%, #00bd65 100%);
+      color: #0b0d11;
+      font-size: 1.25rem;
+      font-weight: 800;
+      padding: 18px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 0 25px rgba(0, 255, 136, 0.45);
+      border: none;
+      transition: all 0.25s ease-in-out;
+      cursor: pointer;
+    }
+
+    .btn-launch:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba(0, 255, 136, 0.7);
+      color: #000;
+    }
+
+    .ready-badge {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: rgba(0, 255, 136, 0.12);
+      border: 2px solid #00ff88;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar info -->
+  <div class="text-center mb-3">
+    <h3 class="fw-bold text-white mb-0">System Onboarding</h3>
+    <small class="text-secondary">Welcome, <strong>{{ username }}</strong> | Quick 4-Step Walkthrough</small>
+  </div>
+
+  <div class="card wizard-card p-4 p-md-5">
+
+    <!-- 4 Step Dots -->
+    <div class="step-indicator-wrapper">
+      <div class="step-dot active" id="dot-1">1</div>
+      <div class="step-dot" id="dot-2">2</div>
+      <div class="step-dot" id="dot-3">3</div>
+      <div class="step-dot" id="dot-4">4</div>
+    </div>
+
+    <!-- PART 1: Camera & Lighting Setup -->
+    <div class="step-content active" id="step-1">
+      <h4 class="fw-bold text-white mb-3">Part 1: Camera Positioning & Lighting</h4>
+      <p class="text-secondary">
+        Our vision system tracks 33 body coordinates in real time. Accurate angle measurement requires a clean camera shot:
+      </p>
+      <div class="info-box">
+        <ul class="text-secondary mb-0 ps-3">
+          <li class="mb-2"><strong>Distance:</strong> Stand <strong>6 to 8 feet away</strong> so your limbs fit inside the frame.</li>
+          <li class="mb-2"><strong>Height:</strong> Position your device at <strong>waist or chest height</strong> (avoid filming from the floor angled up).</li>
+          <li><strong>Lighting:</strong> Keep the room light <strong>in front of you</strong> so your body doesn't become a dark silhouette.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PART 2: Repetition Logic -->
+    <div class="step-content" id="step-2">
+      <h4 class="fw-bold text-white mb-3">Part 2: Two-Stage Rep Counting</h4>
+      <p class="text-secondary">
+        To prevent fake or jittery rep increments, the AI uses a locked state machine:
+      </p>
+      <div class="info-box mb-3">
+        <div class="d-flex align-items-center mb-2">
+          <span class="badge bg-secondary me-2">DOWN STAGE</span>
+          <span class="small text-secondary">&rarr; Rep is primed only when you reach full contraction/depth.</span>
+        </div>
+        <div class="d-flex align-items-center">
+          <span class="badge bg-success me-2">UP STAGE</span>
+          <span class="small text-secondary">&rarr; Rep counts (+1) once you return to full lockout extension.</span>
+        </div>
+      </div>
+      <p class="text-secondary small mb-0">
+        ⚡ <em>Half-reps and bouncing will not trigger a count. Strict form is required!</em>
+      </p>
+    </div>
+
+    <!-- PART 3: Exercise Form Specs -->
+    <div class="step-content" id="step-3">
+      <h4 class="fw-bold text-white mb-3">Part 3: Exercise Movement Rules</h4>
+      
+      <div class="info-box mb-3">
+        <h6 class="fw-bold text-white mb-1">💪 Bicep Curls (Dual Arm)</h6>
+        <p class="text-secondary small mb-0">
+          Stand face-forward. Fully extend arms past <span class="badge-angle">&gt; 160°</span> at the bottom, then curl upwards past <span class="badge-angle">&lt; 35°</span>. Both arms are tracked independently.
+        </p>
+      </div>
+
+      <div class="info-box">
+        <h6 class="fw-bold text-white mb-1">🦵 Squats (Single Leg Reference)</h6>
+        <p class="text-secondary small mb-0">
+          Stand sideways to the camera. Lower until your knee breaks parallel at <span class="badge-angle">&lt; 90°</span>, then stand tall until past <span class="badge-angle">&gt; 160°</span>.
+        </p>
+      </div>
+    </div>
+
+    <!-- PART 4: Ready to Start -->
+    <div class="step-content text-center" id="step-4">
+      <div class="ready-badge">🚀</div>
+      <h4 class="fw-bold text-white mb-2">You're All Set!</h4>
+      <p class="text-secondary mb-4 px-md-3">
+        Your webcam will activate in the next screen. Select your workout mode, step back into view, and start your set.
+      </p>
+
+      <a href="{{ url_for('home') }}" class="btn-launch">
+        Enter Workout Studio &rarr;
+      </a>
+    </div>
+
+    <!-- Navigation Control Bar -->
+    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-secondary border-opacity-25" id="nav-controls">
+      <button type="button" class="btn btn-secondary-custom" id="prevBtn" onclick="moveStep(-1)" disabled>
+        &larr; Previous
+      </button>
+
+      <span class="text-secondary small" id="stepTracker">Part 1 of 4</span>
+
+      <button type="button" class="btn btn-brand" id="nextBtn" onclick="moveStep(1)">
+        Next &rarr;
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    let currentStep = 1;
+    const totalSteps = 4;
+
+    function moveStep(direction) {
+      // Hide current step & reset indicator
+      document.getElementById(`step-${currentStep}`).classList.remove('active');
+      document.getElementById(`dot-${currentStep}`).classList.remove('active');
+
+      if (direction > 0) {
+        document.getElementById(`dot-${currentStep}`).classList.add('completed');
+      } else {
+        document.getElementById(`dot-${currentStep}`).classList.remove('completed');
+      }
+
+      currentStep += direction;
+
+      // Show new step
+      document.getElementById(`step-${currentStep}`).classList.add('active');
+      document.getElementById(`dot-${currentStep}`).classList.add('active');
+
+      // Update progress tracker
+      document.getElementById('stepTracker').innerText = `Part ${currentStep} of ${totalSteps}`;
+
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const navControls = document.getElementById('nav-controls');
+
+      // Previous button state
+      prevBtn.disabled = (currentStep === 1);
+
+      // On Step 4, hide next button to emphasize the big launch CTA
+      if (currentStep === totalSteps) {
+        nextBtn.style.display = 'none';
+      } else {
+        nextBtn.style.display = 'inline-block';
+        nextBtn.innerHTML = 'Next &rarr;';
+      }
+    }
+  </script>
+
+</body>
+</html>

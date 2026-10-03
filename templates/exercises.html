@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Exercise - AI Gym Trainer</title>
+
+  <!-- Bootstrap 5 CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+  <style>
+    :root {
+      --neon-green: #00ff88;
+      --card-bg: rgba(24, 28, 36, 0.92);
+    }
+
+    body {
+      min-height: 100vh;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: 
+        linear-gradient(rgba(10, 12, 16, 0.93), rgba(10, 12, 16, 0.97)),
+        url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat fixed;
+      padding: 40px 0 60px 0;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #8b949e;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+      margin: 35px 0 20px 0;
+    }
+
+    .exercise-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+    }
+
+    .exercise-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 18px 35px rgba(0, 0, 0, 0.85);
+    }
+
+    .icon-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.45rem;
+      margin-bottom: 14px;
+    }
+
+    /* Color Accents */
+    .c-green { background: rgba(0, 255, 136, 0.12); color: #00ff88; border: 1px solid rgba(0, 255, 136, 0.3); }
+    .c-amber { background: rgba(255, 193, 7, 0.12); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); }
+    .c-blue  { background: rgba(64, 169, 255, 0.12); color: #40a9ff; border: 1px solid rgba(64, 169, 255, 0.3); }
+    .c-purple{ background: rgba(186, 104, 200, 0.12); color: #ba68c8; border: 1px solid rgba(186, 104, 200, 0.3); }
+    .c-orange{ background: rgba(255, 112, 67, 0.12); color: #ff7043; border: 1px solid rgba(255, 112, 67, 0.3); }
+    .c-teal  { background: rgba(77, 208, 225, 0.12); color: #4dd0e1; border: 1px solid rgba(77, 208, 225, 0.3); }
+    .c-pink  { background: rgba(240, 98, 146, 0.12); color: #f06292; border: 1px solid rgba(240, 98, 146, 0.3); }
+
+    .tag {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #aaa;
+    }
+
+    .btn-launch {
+      border-radius: 8px;
+      font-weight: 700;
+      padding: 10px;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+    }
+
+    .btn-green  { border: 1px solid #00ff88; color: #00ff88; }
+    .btn-green:hover  { background: #00ff88; color: #000; }
+
+    .btn-amber  { border: 1px solid #ffc107; color: #ffc107; }
+    .btn-amber:hover  { background: #ffc107; color: #000; }
+
+    .btn-blue   { border: 1px solid #40a9ff; color: #40a9ff; }
+    .btn-blue:hover   { background: #40a9ff; color: #000; }
+
+    .btn-purple { border: 1px solid #ba68c8; color: #ba68c8; }
+    .btn-purple:hover { background: #ba68c8; color: #000; }
+
+    .btn-orange { border: 1px solid #ff7043; color: #ff7043; }
+    .btn-orange:hover { background: #ff7043; color: #000; }
+
+    .btn-teal   { border: 1px solid #4dd0e1; color: #4dd0e1; }
+    .btn-teal:hover   { background: #4dd0e1; color: #000; }
+
+    .btn-pink   { border: 1px solid #f06292; color: #f06292; }
+    .btn-pink:hover   { background: #f06292; color: #000; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Top Nav -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <a href="{{ url_for('home') }}" class="btn btn-outline-secondary rounded-pill px-3 py-1 small">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+      </a>
+      <span class="text-secondary small">Athlete: <strong class="text-white">{{ username if username else 'Athlete' }}</strong></span>
+    </div>
+
+    <!-- Header -->
+    <div class="text-center mb-5">
+      <span class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 rounded-pill">
+        <i class="bi bi-camera-video me-1 text-success"></i> Computer Vision Studio
+      </span>
+      <h2 class="display-6 fw-bold text-white">Select a Workout</h2>
+      <p class="text-secondary mx-auto" style="max-width: 520px;">
+        10 real-time exercise models calibrated with automated rep counts and form feedback.
+      </p>
+    </div>
+
+    <!-- SECTION 1: UPPER BODY -->
+    <div class="section-title"><i class="bi bi-arrow-up-right-circle me-1"></i> Upper Body</div>
+    <div class="row g-4">
+      
+      <!-- Bicep Curls -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-green"><i class="bi bi-lightning-charge-fill"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Arms</span><span class="tag">Dual Tracker</span></div>
+            <h5 class="fw-bold text-white mb-2">Bicep Curls</h5>
+            <p class="text-secondary small mb-3">Independent left/right arm flexion tracking via elbow angle.</p>
+          </div>
+          <a href="/workout/bicep_curls" class="btn-launch btn-green">Start Curls &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Shoulder Press -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-purple"><i class="bi bi-chevron-double-up"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Shoulders</span><span class="tag">Overhead Drive</span></div>
+            <h5 class="fw-bold text-white mb-2">Shoulder Press</h5>
+            <p class="text-secondary small mb-3">Vertical overhead arm lockout tracking from ear level to 160°.</p>
+          </div>
+          <a href="/workout/shoulder_press" class="btn-launch btn-purple">Start Press &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Lateral Raises -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-pink"><i class="bi bi-arrows-expand"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Shoulders</span><span class="tag">Abduction</span></div>
+            <h5 class="fw-bold text-white mb-2">Lateral Raises</h5>
+            <p class="text-secondary small mb-3">Side-arm elevations tracking parallel lift to shoulder height.</p>
+          </div>
+          <a href="/workout/lateral_raises" class="btn-launch btn-pink">Start Raises &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Push-ups -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-blue"><i class="bi bi-activity"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Chest & Core</span><span class="tag">Plank Form</span></div>
+            <h5 class="fw-bold text-white mb-2">Push-ups</h5>
+            <p class="text-secondary small mb-3">Chest-to-floor depth tracking with spine alignment verification.</p>
+          </div>
+          <a href="/workout/pushups" class="btn-launch btn-blue">Start Push-ups &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SECTION 2: LOWER BODY -->
+    <div class="section-title"><i class="bi bi-arrow-down-right-circle me-1"></i> Lower Body</div>
+    <div class="row g-4">
+
+      <!-- Squats -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-amber"><i class="bi bi-arrow-down-up"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Legs</span><span class="tag">Parallel Depth</span></div>
+            <h5 class="fw-bold text-white mb-2">Squats</h5>
+            <p class="text-secondary small mb-3">Knee and hip depth validation below 90° with upright lockouts.</p>
+          </div>
+          <a href="/workout/squats" class="btn-launch btn-amber">Start Squats &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Forward Lunges -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-teal"><i class="bi bi-person-walking"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Legs & Glutes</span><span class="tag">Unilateral</span></div>
+            <h5 class="fw-bold text-white mb-2">Lunges</h5>
+            <p class="text-secondary small mb-3">Tracks lead knee bend down to 95° on alternating step lunges.</p>
+          </div>
+          <a href="/workout/lunges" class="btn-launch btn-teal">Start Lunges &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SECTION 3: CORE & CARDIO -->
+    <div class="section-title"><i class="bi bi-heart-pulse me-1"></i> Core & Cardio</div>
+    <div class="row g-4">
+
+      <!-- Jumping Jacks -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-orange"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Full Body</span><span class="tag">Cardio</span></div>
+            <h5 class="fw-bold text-white mb-2">Jumping Jacks</h5>
+            <p class="text-secondary small mb-3">Overhead arm clap and wide feet spread coordination tracking.</p>
+          </div>
+          <a href="/workout/jumping_jacks" class="btn-launch btn-orange">Start Jacks &rarr;</a>
+        </div>
+      </div>
+
+      <!-- High Knees -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-green"><i class="bi bi-speedometer2"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Cardio</span><span class="tag">Hip Flexors</span></div>
+            <h5 class="fw-bold text-white mb-2">High Knees</h5>
+            <p class="text-secondary small mb-3">Rapid knee lifts validated against your horizontal hip plane.</p>
+          </div>
+          <a href="/workout/high_knees" class="btn-launch btn-green">Start High Knees &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Plank Hold -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-blue"><i class="bi bi-stopwatch"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Core</span><span class="tag">Timed Hold</span></div>
+            <h5 class="fw-bold text-white mb-2">Plank Hold</h5>
+            <p class="text-secondary small mb-3">Timed hold that pauses automatically if hips sag or hike up.</p>
+          </div>
+          <a href="/workout/plank_hold" class="btn-launch btn-blue">Start Plank &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Side Bends -->
+      <div class="col-md-6 col-lg-4">
+        <div class="exercise-card p-4">
+          <div>
+            <div class="icon-badge c-purple"><i class="bi bi-symmetry-horizontal"></i></div>
+            <div class="d-flex gap-2 mb-2"><span class="tag">Core</span><span class="tag">Obliques</span></div>
+            <h5 class="fw-bold text-white mb-2">Side Bends</h5>
+            <p class="text-secondary small mb-3">Lateral spinal flexion tracking lateral oblique compression.</p>
+          </div>
+          <a href="/workout/side_bends" class="btn-launch btn-purple">Start Side Bends &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

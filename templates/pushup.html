@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Push-up Studio | AI Gym</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+
+  <style>
+    body {
+      background-color: #0f1115;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 640px;
+      margin: 0 auto 15px auto;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-back { background: #282f3d; color: #e0e0e0; border: 1px solid #444; }
+    .btn-back:hover { background: #3b4455; }
+    .btn-reset { background: #ff4d4f; color: #fff; }
+    .btn-reset:hover { background: #d9363e; box-shadow: 0 0 10px rgba(255, 77, 79, 0.4); }
+
+    .hud {
+      font-size: 1.3rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+      padding: 12px 25px;
+      background: #181c24;
+      border: 1px solid #282f3d;
+      border-radius: 10px;
+      display: inline-block;
+    }
+
+    #feed-display {
+      width: 100%;
+      max-width: 640px;
+      height: auto;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border: 2px solid #ff9800;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(255, 152, 0, 0.25);
+      object-fit: cover;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .feedback-box {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      color: #ffb74d;
+      font-weight: 600;
+      min-height: 24px;
+    }
+
+    .bottom-bar {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .btn-finish {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #ffffff;
+      border: 1px solid #3fb950;
+      border-radius: 8px;
+      padding: 14px 32px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(46, 160, 67, 0.35);
+      transition: transform 0.15s ease, background 0.2s ease;
+    }
+
+    .btn-finish:hover {
+      background: linear-gradient(135deg, #2ea043, #3fb950);
+      transform: translateY(-2px);
+    }
+
+    .btn-finish:disabled {
+      background: #30363d;
+      border-color: #484f58;
+      color: #8b949e;
+      cursor: not-allowed;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <a href="/home/exercises" class="btn btn-back">&larr; Exercises</a>
+    <h3 style="margin: 0;">Push-up Studio</h3>
+    <button type="button" class="btn btn-reset" onclick="resetPushups()">Reset Reps</button>
+  </div>
+
+  <div class="hud">
+    <span style="color: #ff9800; margin-right: 25px;">
+      Push-ups: <span id="pushup_count">0</span>
+    </span>
+    <span style="color: #2ea043;">
+      Stage: <span id="pushup_stage">UP</span>
+    </span>
+  </div>
+
+  <div>
+    <img id="feed-display" alt="Connecting camera feed..." />
+  </div>
+
+  <div class="feedback-box" id="feedback_text">Position your camera side-on to track plank and depth</div>
+
+  <div class="bottom-bar">
+    <button id="finish-btn" type="button" class="btn-finish" onclick="finishPushups()">
+      🏁 Finish Workout & Save
+    </button>
+  </div>
+
+  <video id="webcam" autoplay playsinline muted style="display: none;"></video>
+  <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+
+  <script>
+    const socket = io();
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const feedDisplay = document.getElementById('feed-display');
+    let localStream = null;
+    let streamInterval = null;
+
+    // Start webcam with reliable options
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => { 
+        localStream = stream;
+        video.srcObject = stream;
+        video.play();
+        startStreaming();
+      })
+      .catch(err => {
+        alert("Camera error: " + err.message);
+      });
+
+    function startStreaming() {
+      if (streamInterval) clearInterval(streamInterval);
+      streamInterval = setInterval(() => {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          ctx.drawImage(video, 0, 0, 640, 480);
+          const frameData = canvas.toDataURL('image/jpeg', 0.5);
+          socket.emit('pushup_frame', frameData);
+        }
+      }, 50);
+    }
+
+    socket.on('pushup_response', data => {
+      feedDisplay.src = data.image;
+      document.getElementById('pushup_count').innerText = data.count;
+      document.getElementById('pushup_stage').innerText = data.stage.toUpperCase();
+      document.getElementById('feedback_text').innerText = data.feedback;
+    });
+
+    function resetPushups() {
+      socket.emit('reset_pushup');
+    }
+
+    socket.on('pushup_reset', data => {
+      document.getElementById('pushup_count').innerText = 0;
+      document.getElementById('pushup_stage').innerText = 'UP';
+      document.getElementById('feedback_text').innerText = data.feedback;
+    });
+
+    async function finishPushups() {
+      const finishBtn = document.getElementById('finish-btn');
+      finishBtn.disabled = true;
+      finishBtn.innerText = "Saving to Profile...";
+
+      if (streamInterval) clearInterval(streamInterval);
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      const totalReps = parseInt(document.getElementById('pushup_count').innerText) || 0;
+
+      try {
+        await fetch('/save_workout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exercise: 'Push-ups',
+            total_reps: totalReps,
+            l_cnt: totalReps,
+            r_cnt: totalReps
+          })
+        });
+      } catch (err) {
+        console.error("Save error:", err);
+      }
+
+      window.location.href = '/home';
+    }
+  </script>
+
+</body>
+</html>

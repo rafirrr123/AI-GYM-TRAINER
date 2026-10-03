@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - AI Gym Trainer</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" 
+    rel="stylesheet"
+  />
+  <!-- Bootstrap Icons -->
+  <link 
+    rel="stylesheet" 
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+  />
+
+  <style>
+    :root {
+      --neon-green: #00ff88;
+      --neon-hover: #00cc6a;
+      --card-bg: rgba(24, 28, 36, 0.85);
+      --border-glow: rgba(0, 255, 136, 0.2);
+    }
+
+    body {
+      min-height: 100vh;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: 
+        linear-gradient(rgba(10, 12, 16, 0.90), rgba(10, 12, 16, 0.95)),
+        url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat fixed;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Navbar Styling */
+    .custom-navbar {
+      background: rgba(18, 21, 28, 0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: rgba(0, 255, 136, 0.12);
+      border: 1.5px solid var(--neon-green);
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 12px var(--border-glow);
+    }
+
+    .nav-link {
+      color: #aaa !important;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--neon-green) !important;
+    }
+
+    /* Glass Cards */
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .glass-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(0, 255, 136, 0.35);
+    }
+
+    /* Main Workout Hero CTA Button */
+    .btn-workout-hero {
+      background: linear-gradient(135deg, #00ff88 0%, #00bd65 100%);
+      color: #0b0d11;
+      font-size: 1.35rem;
+      font-weight: 800;
+      padding: 18px 45px;
+      border-radius: 14px;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      border: none;
+      transition: all 0.25s ease;
+    }
+
+    .btn-workout-hero:hover {
+      color: #000;
+      transform: scale(1.03);
+      box-shadow: 0 0 45px rgba(0, 255, 136, 0.7);
+    }
+
+    /* Metric Badges */
+    .stat-box {
+      background: rgba(15, 17, 21, 0.75);
+      border: 1px solid #282f3d;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .stat-number {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--neon-green);
+    }
+
+    /* Plan Tags */
+    .plan-tag {
+      background: rgba(0, 255, 136, 0.1);
+      color: var(--neon-green);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark custom-navbar sticky-top py-3">
+    <div class="container">
+      <!-- Logo + Brand -->
+      <a class="navbar-brand d-flex align-items-center gap-2" href="/home">
+        <div class="brand-logo">
+          <i class="bi bi-lightning-charge-fill" style="color: var(--neon-green); font-size: 1.1rem;"></i>
+        </div>
+        <span class="fw-bold tracking-tight text-white fs-4">AI Gym Trainer</span>
+      </a>
+
+      <!-- Mobile Toggle -->
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <!-- Nav Items -->
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav me-auto ms-lg-4 mb-2 mb-lg-0 gap-lg-3">
+          <li class="nav-item">
+            <a class="nav-link active" href="/home"><i class="bi bi-house-door me-1"></i> Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#workoutPlans"><i class="bi bi-calendar-week me-1"></i> Workout Plans</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/tutorial"><i class="bi bi-info-circle me-1"></i> Guide & Form</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#aboutModal" data-bs-toggle="modal"><i class="bi bi-cpu me-1"></i> About AI</a>
+          </li>
+        </ul>
+
+        <!-- Right Side: Profile & Settings -->
+        <div class="d-flex align-items-center gap-3">
+          <!-- Settings Icon -->
+          <a href="#settingsModal" data-bs-toggle="modal" class="text-secondary fs-5" title="Settings">
+            <i class="bi bi-gear hover-accent"></i>
+          </a>
+
+          <!-- Profile Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary rounded-pill d-flex align-items-center gap-2 py-1 px-3 border-secondary" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-person-circle fs-5" style="color: var(--neon-green);"></i>
+              <span class="text-white small fw-bold">{{ username }}</span>
+              <i class="bi bi-chevron-down small text-secondary"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-lg" style="background: #181c24; border: 1px solid #282f3d;">
+              <li><h6 class="dropdown-header text-secondary">Account</h6></li>
+              <li><a class="dropdown-item" href="#profileModal" data-bs-toggle="modal"><i class="bi bi-person me-2"></i> My Profile</a></li>
+              <li><a class="dropdown-item" href="/tutorial"><i class="bi bi-mortarboard me-2"></i> Calibration Tutorial</a></li>
+              <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+              <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> Log Out</a></li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container my-auto py-5">
+    
+    <!-- Hero / Start Workout Section -->
+    <div class="row justify-content-center mb-5">
+      <div class="col-lg-10">
+        <div class="glass-card p-5 text-center position-relative overflow-hidden">
+          <span class="badge bg-dark border border-secondary text-secondary mb-3 px-3 py-2 rounded-pill">
+            <i class="bi bi-broadcast text-success me-1"></i> Computer Vision Model Active
+          </span>
+          <h1 class="display-4 fw-black text-white mb-3">Ready to Train, <span style="color: var(--neon-green);">{{ username }}</span>?</h1>
+          <p class="text-secondary fs-5 mx-auto mb-4" style="max-width: 620px;">
+            Position your camera, step into the studio, and let our real-time pose detector track your reps with zero wearable sensors.
+          </p>
+
+          <!-- Single Master Workout Action Button -->
+          <div class="d-inline-block">
+            <a href="{{ url_for('exercises') }}" class="btn-workout-hero">
+              <i class="bi bi-play-circle-fill fs-3"></i>
+              <span>Start Workout</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats & Analytics Preview -->
+    <div class="row g-4 justify-content-center mb-5">
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-box text-center">
+          <div class="text-secondary small fw-semibold mb-1">STREAK</div>
+          <div class="stat-number">1 <span class="fs-6 text-secondary">Days</span></div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-box text-center">
+          <div class="text-secondary small fw-semibold mb-1">TOTAL REPS</div>
+          <div class="stat-number">0</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-box text-center">
+          <div class="text-secondary small fw-semibold mb-1">ACCURACY</div>
+          <div class="stat-number">0<span class="fs-6 text-secondary">%</span></div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-box text-center">
+          <div class="text-secondary small fw-semibold mb-1">AI DETECTIONS</div>
+          <div class="stat-number">0 <span class="fs-6 text-secondary">Points</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tiered Workout Plans Section -->
+    <div id="workoutPlans" class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+          <div>
+            <h3 class="fw-bold text-white mb-0">Select Workout Plan</h3>
+            <p class="text-secondary small mb-0">Choose your preferred training intensity to enter the studio</p>
+          </div>
+          <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill">3 Levels</span>
+        </div>
+
+        <div class="row g-4">
+          
+          <!-- Tier 1: Easy -->
+          <div class="col-md-4">
+            <div class="glass-card p-4 h-100 d-flex flex-column justify-content-between" style="border-top: 3px solid #00ff88;">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="plan-tag" style="background: rgba(0, 255, 136, 0.12); color: #00ff88; border-color: rgba(0, 255, 136, 0.35);">
+                    <i class="bi bi-shield-check me-1"></i> Easy
+                  </span>
+                  <span class="text-secondary small"><i class="bi bi-clock me-1"></i> 10-15 Min</span>
+                </div>
+
+                <h4 class="fw-bold text-white mb-2">Beginner Pace</h4>
+                <p class="text-secondary small mb-4">
+                  A lighter pace with relaxed rest intervals, tailored for learning body alignment and consistent joint angles.
+                </p>
+              </div>
+
+              <a href="{{ url_for('easy') }}" class="btn btn-outline-success w-100 fw-bold py-2 rounded-pill">
+                Show Plan &rarr;
+              </a>
+            </div>
+          </div>
+
+          <!-- Tier 2: Medium -->
+          <div class="col-md-4">
+            <div class="glass-card p-4 h-100 d-flex flex-column justify-content-between" style="border-top: 3px solid #ffc107; border-color: rgba(255, 193, 7, 0.35);">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="plan-tag" style="background: rgba(255, 193, 7, 0.12); color: #ffc107; border-color: rgba(255, 193, 7, 0.35);">
+                    <i class="bi bi-lightning-charge me-1"></i> Medium
+                  </span>
+                  <span class="text-secondary small"><i class="bi bi-clock me-1"></i> 20-25 Min</span>
+                </div>
+
+                <h4 class="fw-bold text-white mb-2">Standard Intensity</h4>
+                <p class="text-secondary small mb-4">
+                  Balanced volume with standard tempos, designed for building muscular endurance and clean repetition form.
+                </p>
+              </div>
+
+              <a href="{{ url_for('medium') }}" class="btn btn-outline-warning w-100 fw-bold py-2 rounded-pill text-white" style="border-color: #ffc107;">
+                Show Plan &rarr;
+              </a>
+            </div>
+          </div>
+
+          <!-- Tier 3: Hard -->
+          <div class="col-md-4">
+            <div class="glass-card p-4 h-100 d-flex flex-column justify-content-between" style="border-top: 3px solid #ff4444;">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="plan-tag" style="background: rgba(255, 68, 68, 0.12); color: #ff4444; border-color: rgba(255, 68, 68, 0.35);">
+                    <i class="bi bi-fire me-1"></i> Hard
+                  </span>
+                  <span class="text-secondary small"><i class="bi bi-clock me-1"></i> 30-40 Min</span>
+                </div>
+
+                <h4 class="fw-bold text-white mb-2">High Intensity</h4>
+                <p class="text-secondary small mb-4">
+                  High-demand pace with strict angle tolerances, testing muscle control and stamina under fatigue.
+                </p>
+              </div>
+
+              <a href="{{ url_for('hard') }}" class="btn btn-outline-danger w-100 fw-bold py-2 rounded-pill">
+                Show Plan &rarr;
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modals -->
+  <!-- About Modal -->
+  <div class="modal fade" id="aboutModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-white" style="background: #181c24; border: 1px solid #282f3d;">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title fw-bold"><i class="bi bi-cpu text-success me-2"></i>About AI Gym Trainer</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-secondary small">
+          <p>AI Gym Trainer utilizes lightweight <strong>MediaPipe Pose</strong> machine learning architectures running via OpenCV and Python WebSockets.</p>
+          <p>Joint angles are calculated dynamically via 2D spatial trigonometry ($arctan2$) to track state transitions and detect full ranges of motion without latency.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-white" style="background: #181c24; border: 1px solid #282f3d;">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title fw-bold"><i class="bi bi-gear text-success me-2"></i>Studio Preferences</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="audioToggle" checked>
+            <label class="form-check-label text-light small" for="audioToggle">Repetition Beep Audio</label>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="skeletonToggle" checked>
+            <label class="form-check-label text-light small" for="skeletonToggle">Render Landmark Skeleton</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div class="modal fade" id="profileModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-white" style="background: #181c24; border: 1px solid #282f3d;">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title fw-bold"><i class="bi bi-person text-success me-2"></i>User Profile</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center py-4">
+          <div class="brand-logo mb-3" style="width: 60px; height: 60px;">
+            <i class="bi bi-person-fill fs-2 text-success"></i>
+          </div>
+          <h5 class="fw-bold text-white mb-1">{{ username }}</h5>
+          <span class="text-secondary small">Active Member</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

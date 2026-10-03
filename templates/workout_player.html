@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} | AI Gym</title>
+  <!-- Reliable Socket.io CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+
+  <style>
+    body {
+      background-color: #0f1115;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 640px;
+      margin: 0 auto 15px auto;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-back { background: #282f3d; color: #e0e0e0; border: 1px solid #444; }
+    .btn-back:hover { background: #3b4455; }
+    .btn-reset { background: #ff4d4f; color: #fff; }
+    .btn-reset:hover { background: #d9363e; box-shadow: 0 0 10px rgba(255, 77, 79, 0.4); }
+
+    .hud {
+      font-size: 1.3rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+      padding: 12px 25px;
+      background: #181c24;
+      border: 1px solid #282f3d;
+      border-radius: 10px;
+      display: inline-block;
+    }
+
+    #feed-display {
+      width: 100%;
+      max-width: 640px;
+      height: auto;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border: 2px solid #00ff88;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.25);
+      object-fit: cover;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .feedback-box {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      color: #00d0ff;
+      font-weight: 600;
+      min-height: 24px;
+    }
+
+    .bottom-bar {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .btn-finish {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #ffffff;
+      border: 1px solid #3fb950;
+      border-radius: 8px;
+      padding: 14px 32px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(46, 160, 67, 0.35);
+      transition: transform 0.15s ease, background 0.2s ease;
+    }
+
+    .btn-finish:hover {
+      background: linear-gradient(135deg, #2ea043, #3fb950);
+      transform: translateY(-2px);
+    }
+
+    .btn-finish:disabled {
+      background: #30363d;
+      border-color: #484f58;
+      color: #8b949e;
+      cursor: not-allowed;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <a href="/home/exercises" class="btn btn-back">&larr; Exercises</a>
+    <h3 style="margin: 0;">{{ title }}</h3>
+    <button type="button" class="btn btn-reset" onclick="resetWorkout()">Reset Reps</button>
+  </div>
+
+  <div class="hud">
+    <span style="color: #00ff88; margin-right: 25px;">
+      Count: <span id="rep_count">0</span>
+    </span>
+    <span style="color: #2ea043;">
+      Stage: <span id="stage_val">READY</span>
+    </span>
+  </div>
+
+  <div>
+    <img id="feed-display" alt="Connecting camera feed..." />
+  </div>
+
+  <div class="feedback-box" id="feedback_text">Connecting to camera stream...</div>
+
+  <div class="bottom-bar">
+    <button id="finish-btn" type="button" class="btn-finish" onclick="finishSession()">
+      🏁 Finish Workout & Save
+    </button>
+  </div>
+
+  <video id="webcam" autoplay playsinline muted style="display: none;"></video>
+  <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+
+  <script>
+    const socket = io();
+    const currentExercise = "{{ exercise_key }}";
+    const currentTitle = "{{ title }}";
+
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const feedDisplay = document.getElementById('feed-display');
+    const feedbackText = document.getElementById('feedback_text');
+    let localStream = null;
+    let streamInterval = null;
+
+    socket.on('connect', () => {
+      console.log("Socket connected for exercise:", currentExercise);
+    });
+
+    // Start Webcam with standard permissive constraints
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => { 
+        localStream = stream;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true);
+        video.muted = true;
+
+        video.play().then(() => {
+          console.log("Camera playing, streaming frames now.");
+          startStreaming();
+        }).catch(err => {
+          console.error("Playback error:", err);
+        });
+      })
+      .catch(err => {
+        console.error("Camera access error:", err);
+        feedbackText.innerText = "Camera Error: " + err.name;
+        alert("Camera error: " + err.name + " - " + err.message + "\n\nMake sure to access via http://localhost:5000");
+      });
+
+    // Stream frames to server
+    function startStreaming() {
+      if (streamInterval) clearInterval(streamInterval);
+
+      streamInterval = setInterval(() => {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          ctx.drawImage(video, 0, 0, 640, 480);
+          const frameBase64 = canvas.toDataURL('image/jpeg', 0.5);
+          socket.emit('process_frame', {
+            exercise_key: currentExercise,
+            image: frameBase64
+          });
+        }
+      }, 50);
+    }
+
+    // Receive processed results back from server
+    socket.on('frame_result', data => {
+      if (data.image) {
+        feedDisplay.src = data.image;
+      }
+      document.getElementById('rep_count').innerText = data.count;
+      document.getElementById('stage_val').innerText = data.stage;
+      document.getElementById('feedback_text').innerText = data.feedback;
+    });
+
+    // Reset handler
+    function resetWorkout() {
+      socket.emit('reset_active_workout', { exercise_key: currentExercise });
+    }
+
+    socket.on('workout_reset', data => {
+      document.getElementById('rep_count').innerText = 0;
+      document.getElementById('stage_val').innerText = data.stage;
+      document.getElementById('feedback_text').innerText = data.feedback;
+    });
+
+    // Save and redirect
+    async function finishSession() {
+      const finishBtn = document.getElementById('finish-btn');
+      finishBtn.disabled = true;
+      finishBtn.innerText = "Saving to Profile...";
+
+      if (streamInterval) clearInterval(streamInterval);
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      const totalReps = parseInt(document.getElementById('rep_count').innerText) || 0;
+
+      try {
+        await fetch('/save_workout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            exercise: currentTitle,
+            total_reps: totalReps,
+            l_cnt: totalReps,
+            r_cnt: totalReps
+          })
+        });
+      } catch (err) {
+        console.error("Save error:", err);
+      }
+
+      window.location.href = '/home';
+    }
+  </script>
+</body>
+</html>

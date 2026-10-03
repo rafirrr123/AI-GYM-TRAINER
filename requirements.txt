@@ -1,0 +1,11 @@
+flask
+pyttsx3
+opencv-python
+mediapipe
+numpy
+flask-socketio
+mysql-connector-python
+werkzeug
+gunicorn
+eventlet
+python-dotenv

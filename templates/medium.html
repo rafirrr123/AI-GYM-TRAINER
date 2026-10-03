@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7-Day Medium Plan | AI Gym Trainer</title>
+
+  <!-- Bootstrap 5 CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+  <style>
+    :root {
+      --accent-color: #ffc107;
+      --card-bg: rgba(24, 28, 36, 0.92);
+      --border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    body {
+      min-height: 100vh;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: 
+        linear-gradient(rgba(10, 12, 16, 0.93), rgba(10, 12, 16, 0.97)),
+        url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat fixed;
+      padding: 40px 0 60px 0;
+    }
+
+    .nav-pills .nav-link {
+      background: rgba(255, 255, 255, 0.05);
+      color: #aaa;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin: 4px;
+    }
+
+    .nav-pills .nav-link:hover {
+      background: rgba(255, 193, 7, 0.08);
+      color: #fff;
+      border-color: rgba(255, 193, 7, 0.3);
+    }
+
+    .nav-pills .nav-link.active {
+      background: var(--accent-color) !important;
+      color: #0b0e14 !important;
+      font-weight: 700;
+      box-shadow: 0 0 16px rgba(255, 193, 7, 0.35);
+      border-color: var(--accent-color);
+    }
+
+    .plan-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.65);
+      padding: 30px;
+    }
+
+    .routine-row {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+
+    .routine-row:hover {
+      border-color: rgba(255, 193, 7, 0.4);
+      background: rgba(255, 193, 7, 0.04);
+      transform: translateX(4px);
+    }
+
+    .icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      margin-right: 16px;
+    }
+
+    .c-green { background: rgba(0, 255, 136, 0.12); color: #00ff88; }
+    .c-amber { background: rgba(255, 193, 7, 0.12); color: #ffc107; }
+    .c-blue  { background: rgba(64, 169, 255, 0.12); color: #40a9ff; }
+    .c-purple{ background: rgba(186, 104, 200, 0.12); color: #ba68c8; }
+    .c-orange{ background: rgba(255, 112, 67, 0.12); color: #ff7043; }
+    .c-teal  { background: rgba(77, 208, 225, 0.12); color: #4dd0e1; }
+    .c-pink  { background: rgba(240, 98, 146, 0.12); color: #f06292; }
+
+    .btn-launch {
+      border: 1px solid var(--accent-color);
+      color: var(--accent-color);
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 8px 18px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .btn-launch:hover {
+      background: var(--accent-color);
+      color: #0b0e14;
+      box-shadow: 0 0 12px rgba(255, 193, 7, 0.3);
+    }
+
+    .rest-day-box {
+      text-align: center;
+      padding: 60px 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" style="max-width: 900px;">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <a href="{{ url_for('home') }}" class="btn btn-outline-secondary rounded-pill px-3 py-1 small">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+      </a>
+      <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 px-3 py-2 rounded-pill">
+        Medium Difficulty
+      </span>
+    </div>
+
+    <div class="text-center mb-4">
+      <h2 class="display-6 fw-bold text-white mb-2">7-Day Conditioning Plan</h2>
+      <p class="text-secondary mx-auto" style="max-width: 540px;">
+        Multi-joint supersets, higher repetitions, and core endurance. Rest 45–60 seconds between sets.
+      </p>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-pills justify-content-center mb-4" id="weekTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#day1" type="button">Day 1</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day2" type="button">Day 2</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day3" type="button">Day 3</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day4" type="button">Day 4 (Rest)</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day5" type="button">Day 5</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day6" type="button">Day 6</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#day7" type="button">Day 7 (Rest)</button></li>
+    </ul>
+
+    <div class="tab-content" id="weekTabsContent">
+
+      <!-- DAY 1: Lower Body & Cardio Burn -->
+      <div class="tab-pane fade show active" id="day1">
+        <div class="plan-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="fw-bold text-white mb-1">Day 1: Legs & High Cardio</h4>
+              <p class="text-secondary small mb-0">Push depth on squats and lunges. Rest 45s.</p>
+            </div>
+            <span class="badge bg-dark border border-secondary text-secondary">4 Exercises</span>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-green"><i class="bi bi-speedometer2"></i></div>
+              <div>
+                <h5 class="text-white mb-1">1. High Knees</h5>
+                <span class="text-secondary small">3 Sets &bull; 24 Reps &bull; High Cadence</span>
+              </div>
+            </div>
+            <a href="/workout/high_knees" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-amber"><i class="bi bi-arrow-down-up"></i></div>
+              <div>
+                <h5 class="text-white mb-1">2. Bodyweight Squats</h5>
+                <span class="text-secondary small">3 Sets &bull; 15 Reps &bull; Full Depth (&le; 90°)</span>
+              </div>
+            </div>
+            <a href="/workout/squats" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-teal"><i class="bi bi-person-walking"></i></div>
+              <div>
+                <h5 class="text-white mb-1">3. Forward Lunges</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Alternating</span>
+              </div>
+            </div>
+            <a href="/workout/lunges" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-blue"><i class="bi bi-stopwatch"></i></div>
+              <div>
+                <h5 class="text-white mb-1">4. Plank Hold</h5>
+                <span class="text-secondary small">3 Sets &bull; 35 Seconds &bull; Rigid Core</span>
+              </div>
+            </div>
+            <a href="/workout/plank_hold" class="btn-launch">Launch &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAY 2: Upper Push & Shoulders -->
+      <div class="tab-pane fade" id="day2">
+        <div class="plan-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="fw-bold text-white mb-1">Day 2: Upper Body Hypertrophy</h4>
+              <p class="text-secondary small mb-0">Full arm lockout on every rep. Rest 60s.</p>
+            </div>
+            <span class="badge bg-dark border border-secondary text-secondary">4 Exercises</span>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-blue"><i class="bi bi-activity"></i></div>
+              <div>
+                <h5 class="text-white mb-1">1. Push-ups</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Full Plank Alignment</span>
+              </div>
+            </div>
+            <a href="/workout/pushups" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-purple"><i class="bi bi-chevron-double-up"></i></div>
+              <div>
+                <h5 class="text-white mb-1">2. Shoulder Press</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Overhead Lockout</span>
+              </div>
+            </div>
+            <a href="/workout/shoulder_press" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-pink"><i class="bi bi-arrows-expand"></i></div>
+              <div>
+                <h5 class="text-white mb-1">3. Lateral Raises</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Parallel Deltoid Lift</span>
+              </div>
+            </div>
+            <a href="/workout/lateral_raises" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-green"><i class="bi bi-lightning-charge-fill"></i></div>
+              <div>
+                <h5 class="text-white mb-1">4. Bicep Curls</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Paired Reps &bull; Controlled Drop</span>
+              </div>
+            </div>
+            <a href="/workout/bicep_curls" class="btn-launch">Launch &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAY 3: Full Body Cardio & Core -->
+      <div class="tab-pane fade" id="day3">
+        <div class="plan-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="fw-bold text-white mb-1">Day 3: Core & Heart Rate Loop</h4>
+              <p class="text-secondary small mb-0">Cardio intervals paired with oblique work. Rest 45s.</p>
+            </div>
+            <span class="badge bg-dark border border-secondary text-secondary">4 Exercises</span>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-orange"><i class="bi bi-heart-pulse-fill"></i></div>
+              <div>
+                <h5 class="text-white mb-1">1. Jumping Jacks</h5>
+                <span class="text-secondary small">3 Sets &bull; 25 Reps &bull; Wide Arm Spread</span>
+              </div>
+            </div>
+            <a href="/workout/jumping_jacks" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-purple"><i class="bi bi-symmetry-horizontal"></i></div>
+              <div>
+                <h5 class="text-white mb-1">2. Side Bends</h5>
+                <span class="text-secondary small">3 Sets &bull; 14 Reps &bull; Lateral Core</span>
+              </div>
+            </div>
+            <a href="/workout/side_bends" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-green"><i class="bi bi-speedometer2"></i></div>
+              <div>
+                <h5 class="text-white mb-1">3. High Knees</h5>
+                <span class="text-secondary small">2 Sets &bull; 24 Reps &bull; Pace Consistency</span>
+              </div>
+            </div>
+            <a href="/workout/high_knees" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-blue"><i class="bi bi-stopwatch"></i></div>
+              <div>
+                <h5 class="text-white mb-1">4. Plank Hold</h5>
+                <span class="text-secondary small">3 Sets &bull; 40 Seconds &bull; Zero Hip Sag</span>
+              </div>
+            </div>
+            <a href="/workout/plank_hold" class="btn-launch">Launch &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAY 4: Rest -->
+      <div class="tab-pane fade" id="day4">
+        <div class="plan-card rest-day-box">
+          <i class="bi bi-moon-stars text-warning display-4 mb-3 d-block"></i>
+          <h4 class="fw-bold text-white">Mid-Week Recovery Day</h4>
+          <p class="text-secondary mx-auto" style="max-width: 440px;">
+            Let connective tissue adapt. Rehydrate, eat sufficient protein, and prepare for the second half of the conditioning block.
+          </p>
+          <a href="{{ url_for('exercises') }}" class="btn btn-outline-secondary rounded-pill px-4 mt-2">
+            Practice Individual Form
+          </a>
+        </div>
+      </div>
+
+      <!-- DAY 5: Compound Upper & Lower -->
+      <div class="tab-pane fade" id="day5">
+        <div class="plan-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="fw-bold text-white mb-1">Day 5: Compound Synergy</h4>
+              <p class="text-secondary small mb-0">Alternate heavy lower and upper movements. Rest 50s.</p>
+            </div>
+            <span class="badge bg-dark border border-secondary text-secondary">4 Exercises</span>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-amber"><i class="bi bi-arrow-down-up"></i></div>
+              <div>
+                <h5 class="text-white mb-1">1. Bodyweight Squats</h5>
+                <span class="text-secondary small">3 Sets &bull; 15 Reps &bull; Power from Heels</span>
+              </div>
+            </div>
+            <a href="/workout/squats" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-blue"><i class="bi bi-activity"></i></div>
+              <div>
+                <h5 class="text-white mb-1">2. Push-ups</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Strict Tempo</span>
+              </div>
+            </div>
+            <a href="/workout/pushups" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-teal"><i class="bi bi-person-walking"></i></div>
+              <div>
+                <h5 class="text-white mb-1">3. Forward Lunges</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Deep Step Drop</span>
+              </div>
+            </div>
+            <a href="/workout/lunges" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-purple"><i class="bi bi-chevron-double-up"></i></div>
+              <div>
+                <h5 class="text-white mb-1">4. Shoulder Press</h5>
+                <span class="text-secondary small">3 Sets &bull; 12 Reps &bull; Lockout Focus</span>
+              </div>
+            </div>
+            <a href="/workout/shoulder_press" class="btn-launch">Launch &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAY 6: Total Body Finisher -->
+      <div class="tab-pane fade" id="day6">
+        <div class="plan-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h4 class="fw-bold text-white mb-1">Day 6: Total Body Density</h4>
+              <p class="text-secondary small mb-0">High repetition volume to exhaust all muscle groups. Rest 45s.</p>
+            </div>
+            <span class="badge bg-dark border border-secondary text-secondary">4 Exercises</span>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-orange"><i class="bi bi-heart-pulse-fill"></i></div>
+              <div>
+                <h5 class="text-white mb-1">1. Jumping Jacks</h5>
+                <span class="text-secondary small">2 Sets &bull; 30 Reps &bull; High Intensity</span>
+              </div>
+            </div>
+            <a href="/workout/jumping_jacks" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-pink"><i class="bi bi-arrows-expand"></i></div>
+              <div>
+                <h5 class="text-white mb-1">2. Lateral Raises</h5>
+                <span class="text-secondary small">3 Sets &bull; 14 Reps &bull; Controlled Cadence</span>
+              </div>
+            </div>
+            <a href="/workout/lateral_raises" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-green"><i class="bi bi-lightning-charge-fill"></i></div>
+              <div>
+                <h5 class="text-white mb-1">3. Bicep Curls</h5>
+                <span class="text-secondary small">3 Sets &bull; 14 Paired Reps &bull; Peak Squeeze</span>
+              </div>
+            </div>
+            <a href="/workout/bicep_curls" class="btn-launch">Launch &rarr;</a>
+          </div>
+
+          <div class="routine-row">
+            <div class="d-flex align-items-center">
+              <div class="icon-badge c-blue"><i class="bi bi-stopwatch"></i></div>
+              <div>
+                <h5 class="text-white mb-1">4. Plank Hold</h5>
+                <span class="text-secondary small">3 Sets &bull; 45 Seconds &bull; Max Stability</span>
+              </div>
+            </div>
+            <a href="/workout/plank_hold" class="btn-launch">Launch &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAY 7: Rest -->
+      <div class="tab-pane fade" id="day7">
+        <div class="plan-card rest-day-box">
+          <i class="bi bi-shield-check text-warning display-4 mb-3 d-block"></i>
+          <h4 class="fw-bold text-white">Conditioning Cycle Finished</h4>
+          <p class="text-secondary mx-auto" style="max-width: 440px;">
+            Outstanding consistency! Check your updated lifetime rep total and active streak on your athlete dashboard before tackling Hard difficulty.
+          </p>
+          <a href="{{ url_for('home') }}" class="btn btn-outline-warning rounded-pill px-4 mt-2">
+            View Athlete Stats &rarr;
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
