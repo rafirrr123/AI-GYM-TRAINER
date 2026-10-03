@@ -1,37 +1,68 @@
 import base64
 import cv2
 import numpy as np
+import gc
 from datetime import date, timedelta
 from flask import Flask, jsonify, request, render_template, url_for, redirect, session
 from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
 
-
-# Workout Detectors
-from workouts.bisup_curl import BicepCurlDetector
-from workouts.squat import SquatDetector
 from database_connection import get_db_connection
-from workouts.pushup import PushupDetector
-from workouts.shoulder_press import ShoulderPressDetector
-from workouts.jumping_jacks import JumpingJackDetector
-from workouts.lateral_raise import LateralRaiseDetector
-from workouts.lunges import LungeDetector
-from workouts.high_knees import HighKneesDetector
-from workouts.side_bends import SideBendDetector
-from workouts.plank_hold import PlankHoldDetector
 
-# --- 1. App Configuration ---
+# --- App Configuration ---
 app = Flask(__name__)
-# Secret key is required to encrypt session cookies
 app.config['SECRET_KEY'] = 'aigym_super_secret_key_2026'
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Detector instances
-curl_detector = BicepCurlDetector()
-squat_detector = SquatDetector()
-pushup_detector = PushupDetector()
+# ----------------- LAZY DETECTOR REGISTRY -----------------
+# Map exercise keys to module paths and class names so nothing loads on boot
+DETECTOR_REGISTRY = {
+    "bicep_curls": {"module": "workouts.bisup_curl", "class": "BicepCurlDetector", "title": "Bicep Curls", "type": "dual"},
+    "squats": {"module": "workouts.squat", "class": "SquatDetector", "title": "Squats", "type": "single"},
+    "pushups": {"module": "workouts.pushup", "class": "PushupDetector", "title": "Push-ups", "type": "single"},
+    "shoulder_press": {"module": "workouts.shoulder_press", "class": "ShoulderPressDetector", "title": "Shoulder Press", "type": "single"},
+    "jumping_jacks": {"module": "workouts.jumping_jacks", "class": "JumpingJackDetector", "title": "Jumping Jacks", "type": "single"},
+    "lateral_raises": {"module": "workouts.lateral_raise", "class": "LateralRaiseDetector", "title": "Lateral Raises", "type": "single"},
+    "lunges": {"module": "workouts.lunges", "class": "LungeDetector", "title": "Lunges", "type": "single"},
+    "high_knees": {"module": "workouts.high_knees", "class": "HighKneesDetector", "title": "High Knees", "type": "single"},
+    "side_bends": {"module": "workouts.side_bends", "class": "SideBendDetector", "title": "Side Bends", "type": "single"},
+    "plank_hold": {"module": "workouts.plank_hold", "class": "PlankHoldDetector", "title": "Plank Hold", "type": "single"},
+}
+
+# Single active instance tracker
+active_detector = None
+active_exercise_key = None
+
+def get_or_switch_detector(exercise_key):
+    """Ensures ONLY ONE detector exists in memory at any time."""
+    global active_detector, active_exercise_key
+
+    if active_exercise_key == exercise_key and active_detector is not None:
+        return active_detector
+
+    # Clean up and release the previous detector
+    if active_detector is not None:
+        if hasattr(active_detector, 'close'):
+            active_detector.close()
+        del active_detector
+        active_detector = None
+        gc.collect()
+
+    config = DETECTOR_REGISTRY.get(exercise_key)
+    if not config:
+        return None
+
+    # Dynamically import and instantiate ONLY the requested model
+    import importlib
+    mod = importlib.import_module(config["module"])
+    detector_class = getattr(mod, config["class"])
+    
+    active_detector = detector_class()
+    active_exercise_key = exercise_key
+    gc.collect()
+    return active_detector
 
 # ----------------- AUTHENTICATION ROUTES -----------------
 
@@ -63,7 +94,6 @@ def loging():
         cursor.close()
         conn.close()
 
-        # Secure password check using hashes
         if user and check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
             session['username'] = user['username']
@@ -101,7 +131,6 @@ def signing():
 
         cursor.close()
         conn.close()
-
         return redirect(url_for("tutorial"))
     except mysql.connector.Error as err:
         return render_template("signup.html", error=f"Database error: {err}")
@@ -128,7 +157,6 @@ def home():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # 1. Lifetime reps sum
     cursor.execute("""
         SELECT COALESCE(SUM(total_reps), 0) AS lifetime_reps
         FROM workout_history
@@ -136,7 +164,6 @@ def home():
     """, (user_id,))
     lifetime_reps = cursor.fetchone()['lifetime_reps']
 
-    # 2. Distinct workout dates for active days and streak
     cursor.execute("""
         SELECT DISTINCT DATE(completed_at) AS workout_date
         FROM workout_history
@@ -147,7 +174,6 @@ def home():
 
     total_active_days = len(date_rows)
 
-    # 3. Consecutive day streak
     streak = 0
     if date_rows:
         today = date.today()
@@ -163,7 +189,6 @@ def home():
                 else:
                     break
 
-    # 4. Recent 6 workout entries
     cursor.execute("""
         SELECT exercise_name, left_reps, right_reps, total_reps, completed_at
         FROM workout_history
@@ -201,7 +226,7 @@ def hard():
 def exercises():
     return render_template("exercises.html")
 
-# ----------------- EXERCISE PAGES -----------------
+# ----------------- LEGACY EXERCISE PAGES -----------------
 
 @app.route('/bicepcurl')
 def bicepcurl():
@@ -233,11 +258,9 @@ def save_workout():
     l_cnt = int(data.get('l_cnt', 0))
     r_cnt = int(data.get('r_cnt', 0))
 
-    # Calculate reps based on exercise type
-    if exercise == 'Bicep Curls':
-        final_reps = min(l_cnt, r_cnt)  # Pair matching
+    if exercise in ['Bicep Curls', 'bicep_curls']:
+        final_reps = min(l_cnt, r_cnt)
     else:
-        # For Squats or single-counter exercises
         final_reps = int(data.get('total_reps', max(l_cnt, r_cnt)))
 
     if final_reps > 0:
@@ -245,7 +268,6 @@ def save_workout():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Check if user already logged this exercise today
         cursor.execute("""
             SELECT id, left_reps, right_reps, total_reps 
             FROM workout_history 
@@ -257,7 +279,6 @@ def save_workout():
         existing_row = cursor.fetchone()
 
         if existing_row:
-            # Accumulate on today's existing row
             cursor.execute("""
                 UPDATE workout_history 
                 SET left_reps = left_reps + %s,
@@ -267,7 +288,6 @@ def save_workout():
                 WHERE id = %s
             """, (l_cnt, r_cnt, final_reps, existing_row['id']))
         else:
-            # First set today: insert fresh row
             cursor.execute("""
                 INSERT INTO workout_history (user_id, exercise_name, left_reps, right_reps, total_reps)
                 VALUES (%s, %s, %s, %s, %s)
@@ -279,142 +299,14 @@ def save_workout():
 
     return jsonify({"status": "saved", "paired_reps": final_reps})
 
-# ----------------- BICEP CURL WEBSOCKETS -----------------
-
-@socketio.on('video_frame')
-def handle_frame(data):
-    if not data or ',' not in data:
-        return
-
-    try:
-        _, encoded = data.split(',', 1)
-        img_bytes = base64.b64decode(encoded)
-        np_arr = np.frombuffer(img_bytes, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-        if frame is None:
-            return
-
-        frame, l_cnt, l_stg, r_cnt, r_stg = curl_detector.process(frame)
-
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
-        img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-
-        emit('response_frame', {
-            'image': img_base64,
-            'l_cnt': l_cnt,
-            'l_stg': l_stg,
-            'r_cnt': r_cnt,
-            'r_stg': r_stg
-        })
-    except Exception as e:
-        print("Bicep frame error:", e)
-
-@socketio.on('reset_counter')
-def handle_reset():
-    curl_detector.reset()
-    emit('counter_reset', {
-        'l_cnt': 0,
-        'l_stg': 'down',
-        'r_cnt': 0,
-        'r_stg': 'down'
-    })
-
-# ----------------- SQUAT WEBSOCKETS -----------------
-
-@socketio.on('squat_frame')
-def handle_squat_frame(data):
-    if not data or ',' not in data:
-        return
-
-    try:
-        _, encoded = data.split(',', 1)
-        img_bytes = base64.b64decode(encoded)
-        np_arr = np.frombuffer(img_bytes, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-        if frame is None:
-            return
-
-        frame, count, stage, feedback = squat_detector.process(frame)
-
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
-        img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-
-        emit('squat_response', {
-            'image': img_base64,
-            'count': count,
-            'stage': stage,
-            'feedback': feedback
-        })
-    except Exception as e:
-        print("Squat frame error:", e)
-
-@socketio.on('reset_squat')
-def handle_squat_reset():
-    squat_detector.reset()
-    emit('squat_reset', {
-        'count': 0,
-        'stage': 'up',
-        'feedback': 'Counter reset'
-    })
-
-@socketio.on('pushup_frame')
-def handle_pushup_frame(data):
-    if not data or ',' not in data:
-        return
-
-    try:
-        _, encoded = data.split(',', 1)
-        img_bytes = base64.b64decode(encoded)
-        np_arr = np.frombuffer(img_bytes, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-        if frame is None:
-            return
-
-        frame, count, stage, feedback = pushup_detector.process(frame)
-
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
-        img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-
-        emit('pushup_response', {
-            'image': img_base64,
-            'count': count,
-            'stage': stage,
-            'feedback': feedback
-        })
-    except Exception as e:
-        print("Pushup frame error:", e)
-
-@socketio.on('reset_pushup')
-def handle_pushup_reset():
-    pushup_detector.reset()
-    emit('pushup_reset', {
-        'count': 0,
-        'stage': 'up',
-        'feedback': 'Counter reset'
-    })
-
-EXERCISE_CONFIG = {
-    "bicep_curls": {"title": "Bicep Curls", "detector": BicepCurlDetector(), "type": "dual"},
-    "squats": {"title": "Squats", "detector": SquatDetector(), "type": "single"},
-    "pushups": {"title": "Push-ups", "detector": PushupDetector(), "type": "single"},
-    "shoulder_press": {"title": "Shoulder Press", "detector": ShoulderPressDetector(), "type": "single"},
-    "jumping_jacks": {"title": "Jumping Jacks", "detector": JumpingJackDetector(), "type": "single"},
-    "lateral_raises": {"title": "Lateral Raises", "detector": LateralRaiseDetector(), "type": "single"},
-    "lunges": {"title": "Lunges", "detector": LungeDetector(), "type": "single"},
-    "high_knees": {"title": "High Knees", "detector": HighKneesDetector(), "type": "single"},
-    "side_bends": {"title": "Side Bends", "detector": SideBendDetector(), "type": "single"},
-    "plank_hold": {"title": "Plank Hold", "detector": PlankHoldDetector(), "type": "single"},
-}
+# ----------------- UNIFIED WORKOUT PLAYER -----------------
 
 @app.route("/workout/<exercise_key>")
 def workout_session(exercise_key):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    config = EXERCISE_CONFIG.get(exercise_key)
+    config = DETECTOR_REGISTRY.get(exercise_key)
     if not config:
         return redirect(url_for('exercises'))
 
@@ -425,15 +317,18 @@ def workout_session(exercise_key):
         mode=config["type"]
     )
 
-# Generic WebSocket Handler
 @socketio.on('process_frame')
 def handle_generic_frame(data):
     if not data or 'image' not in data or 'exercise_key' not in data:
         return
 
     exercise_key = data['exercise_key']
-    config = EXERCISE_CONFIG.get(exercise_key)
+    config = DETECTOR_REGISTRY.get(exercise_key)
     if not config:
+        return
+
+    detector = get_or_switch_detector(exercise_key)
+    if detector is None:
         return
 
     try:
@@ -444,9 +339,6 @@ def handle_generic_frame(data):
         if frame is None:
             return
 
-        detector = config["detector"]
-        
-        # Bicep curls have 5 outputs (dual arm); standard detectors have 4
         if config["type"] == "dual":
             frame, l_cnt, l_stg, r_cnt, r_stg = detector.process(frame)
             count = min(l_cnt, r_cnt)
@@ -470,12 +362,102 @@ def handle_generic_frame(data):
 @socketio.on('reset_active_workout')
 def handle_generic_reset(data):
     exercise_key = data.get('exercise_key')
-    if exercise_key in EXERCISE_CONFIG:
-        EXERCISE_CONFIG[exercise_key]["detector"].reset()
+    global active_detector, active_exercise_key
+    if active_exercise_key == exercise_key and active_detector is not None:
+        active_detector.reset()
         emit('workout_reset', {'count': 0, 'stage': 'RESET', 'feedback': 'Ready'})
 
-# ----------------- RUN SERVER -----------------
+# ----------------- BACKWARD-COMPATIBLE WEBSOCKETS -----------------
 
+@socketio.on('video_frame')
+def handle_frame(data):
+    if not data or ',' not in data:
+        return
+    detector = get_or_switch_detector('bicep_curls')
+    try:
+        _, encoded = data.split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+        frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            return
+        frame, l_cnt, l_stg, r_cnt, r_stg = detector.process(frame)
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+        emit('response_frame', {
+            'image': f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}",
+            'l_cnt': l_cnt,
+            'l_stg': l_stg,
+            'r_cnt': r_cnt,
+            'r_stg': r_stg
+        })
+    except Exception as e:
+        print("Bicep frame error:", e)
+
+@socketio.on('reset_counter')
+def handle_reset():
+    detector = get_or_switch_detector('bicep_curls')
+    if detector:
+        detector.reset()
+    emit('counter_reset', {'l_cnt': 0, 'l_stg': 'down', 'r_cnt': 0, 'r_stg': 'down'})
+
+@socketio.on('squat_frame')
+def handle_squat_frame(data):
+    if not data or ',' not in data:
+        return
+    detector = get_or_switch_detector('squats')
+    try:
+        _, encoded = data.split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+        frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            return
+        frame, count, stage, feedback = detector.process(frame)
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+        emit('squat_response', {
+            'image': f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}",
+            'count': count,
+            'stage': stage,
+            'feedback': feedback
+        })
+    except Exception as e:
+        print("Squat frame error:", e)
+
+@socketio.on('reset_squat')
+def handle_squat_reset():
+    detector = get_or_switch_detector('squats')
+    if detector:
+        detector.reset()
+    emit('squat_reset', {'count': 0, 'stage': 'up', 'feedback': 'Counter reset'})
+
+@socketio.on('pushup_frame')
+def handle_pushup_frame(data):
+    if not data or ',' not in data:
+        return
+    detector = get_or_switch_detector('pushups')
+    try:
+        _, encoded = data.split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+        frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            return
+        frame, count, stage, feedback = detector.process(frame)
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+        emit('pushup_response', {
+            'image': f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}",
+            'count': count,
+            'stage': stage,
+            'feedback': feedback
+        })
+    except Exception as e:
+        print("Pushup frame error:", e)
+
+@socketio.on('reset_pushup')
+def handle_pushup_reset():
+    detector = get_or_switch_detector('pushups')
+    if detector:
+        detector.reset()
+    emit('pushup_reset', {'count': 0, 'stage': 'up', 'feedback': 'Counter reset'})
+
+# ----------------- RUN SERVER -----------------
 
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=5000, debug=True)
