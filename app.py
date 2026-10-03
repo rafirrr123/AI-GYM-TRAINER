@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+
 import base64
 import cv2
 import numpy as np
@@ -14,7 +17,7 @@ from database_connection import get_db_connection
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'aigym_super_secret_key_2026'
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # ----------------- LAZY DETECTOR REGISTRY -----------------
 # Map exercise keys to module paths and class names so nothing loads on boot
