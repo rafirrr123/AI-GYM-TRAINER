@@ -1,12 +1,18 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+import gc
 
 class BicepCurlDetector:
     def __init__(self):
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+        self.pose = self.mp_pose.Pose(
+            model_complexity=0,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+            static_image_mode=False
+        )
 
         # Left arm states
         self.left_counter = 0
@@ -21,6 +27,13 @@ class BicepCurlDetector:
         self.left_stage = "down"
         self.right_counter = 0
         self.right_stage = "down"
+
+    def close(self):
+        """Releases underlying MediaPipe C++ graph memory."""
+        if hasattr(self, 'pose') and self.pose is not None:
+            self.pose.close()
+            self.pose = None
+        gc.collect()
 
     def calculate_angle(self, a, b, c):
         a = np.array(a)  # Shoulder
@@ -104,5 +117,4 @@ class BicepCurlDetector:
                 self.mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
             )
 
-        # Returns all 5 variables so app.py receives both arm counters
         return frame, self.left_counter, self.left_stage, self.right_counter, self.right_stage
