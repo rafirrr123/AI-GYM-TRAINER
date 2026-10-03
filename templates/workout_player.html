@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }} | AI Gym</title>
-  <!-- Reliable Socket.io CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
   <style>
     body {
@@ -137,10 +136,15 @@
   </div>
 
   <video id="webcam" autoplay playsinline muted style="display: none;"></video>
-  <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+  <canvas id="canvas" width="480" height="360" style="display: none;"></canvas>
 
   <script>
-    const socket = io();
+    // Explicitly configure transports for Render's HTTPS/WSS environment
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5
+    });
+
     const currentExercise = "{{ exercise_key }}";
     const currentTitle = "{{ title }}";
 
@@ -149,48 +153,70 @@
     const ctx = canvas.getContext('2d');
     const feedDisplay = document.getElementById('feed-display');
     const feedbackText = document.getElementById('feedback_text');
+
     let localStream = null;
-    let streamInterval = null;
+    let isProcessing = false;
+    let streamingActive = false;
 
     socket.on('connect', () => {
-      console.log("Socket connected for exercise:", currentExercise);
+      console.log("Socket connected successfully. ID:", socket.id);
+      feedbackText.innerText = "Connected! Starting camera...";
     });
 
-    // Start Webcam with standard permissive constraints
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then(stream => { 
-        localStream = stream;
-        video.srcObject = stream;
-        video.setAttribute("playsinline", true);
-        video.muted = true;
+    socket.on('connect_error', (err) => {
+      console.error("Socket connection failed:", err);
+      feedbackText.innerText = "Connection error. Retrying...";
+    });
 
-        video.play().then(() => {
-          console.log("Camera playing, streaming frames now.");
-          startStreaming();
-        }).catch(err => {
-          console.error("Playback error:", err);
-        });
-      })
-      .catch(err => {
-        console.error("Camera access error:", err);
-        feedbackText.innerText = "Camera Error: " + err.name;
-        alert("Camera error: " + err.name + " - " + err.message + "\n\nMake sure to access via http://localhost:5000");
+    // Start Webcam
+    navigator.mediaDevices.getUserMedia({ 
+      video: { width: { ideal: 480 }, height: { ideal: 360 } }, 
+      audio: false 
+    })
+    .then(stream => { 
+      localStream = stream;
+      video.srcObject = stream;
+      video.setAttribute("playsinline", true);
+      video.muted = true;
+
+      video.play().then(() => {
+        console.log("Camera playing.");
+        feedbackText.innerText = "Position yourself in front of camera";
+        streamingActive = true;
+        sendNextFrame();
+      }).catch(err => {
+        console.error("Playback error:", err);
       });
+    })
+    .catch(err => {
+      console.error("Camera access error:", err);
+      feedbackText.innerText = "Camera Error: " + err.name;
+      alert("Camera error: " + err.name + ".\nPlease grant camera permissions.");
+    });
 
-    // Stream frames to server
-    function startStreaming() {
-      if (streamInterval) clearInterval(streamInterval);
+    // Request-Response Loop: Only sends next frame when previous frame is completed
+    function sendNextFrame() {
+      if (!streamingActive) return;
 
-      streamInterval = setInterval(() => {
-        if (video.readyState >= 2 && video.videoWidth > 0) {
-          ctx.drawImage(video, 0, 0, 640, 480);
-          const frameBase64 = canvas.toDataURL('image/jpeg', 0.5);
-          socket.emit('process_frame', {
-            exercise_key: currentExercise,
-            image: frameBase64
-          });
+      if (!isProcessing && video.readyState >= 2 && socket.connected) {
+        isProcessing = true;
+        ctx.drawImage(video, 0, 0, 480, 360);
+        // Using 0.4 quality significantly reduces payload size & speeds up transfer
+        const frameBase64 = canvas.toDataURL('image/jpeg', 0.4);
+
+        socket.emit('process_frame', {
+          exercise_key: currentExercise,
+          image: frameBase64
+        });
+      }
+
+      // Safety timeout in case a packet drops
+      setTimeout(() => {
+        if (isProcessing) {
+          isProcessing = false;
+          sendNextFrame();
         }
-      }, 50);
+      }, 300);
     }
 
     // Receive processed results back from server
@@ -201,6 +227,10 @@
       document.getElementById('rep_count').innerText = data.count;
       document.getElementById('stage_val').innerText = data.stage;
       document.getElementById('feedback_text').innerText = data.feedback;
+
+      // Unlock and request next frame immediately
+      isProcessing = false;
+      sendNextFrame();
     });
 
     // Reset handler
@@ -216,11 +246,11 @@
 
     // Save and redirect
     async function finishSession() {
+      streamingActive = false;
       const finishBtn = document.getElementById('finish-btn');
       finishBtn.disabled = true;
       finishBtn.innerText = "Saving to Profile...";
 
-      if (streamInterval) clearInterval(streamInterval);
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
