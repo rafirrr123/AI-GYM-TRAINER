@@ -162,9 +162,13 @@
     let isProcessing = false;
     let streamingActive = false;
     let watchdogTimer = null;
+    let socketConnected = false;
+    const FRAME_TIMEOUT_MS = 15000;
+    const FRAME_INTERVAL_MS = 250;
 
     socket.on('connect', () => {
       console.log("Socket connected with ID:", socket.id);
+      socketConnected = true;
       feedbackText.innerText = "Connected! Syncing with AI...";
       isProcessing = false;
       if (streamingActive) {
@@ -173,8 +177,17 @@
     });
 
     socket.on('connect_error', (err) => {
+      socketConnected = false;
       console.error("Socket connection error:", err);
       feedbackText.innerText = "Reconnecting to server...";
+    });
+
+    socket.on('disconnect', reason => {
+      socketConnected = false;
+      isProcessing = false;
+      clearTimeout(watchdogTimer);
+      console.warn("Socket disconnected:", reason);
+      feedbackText.innerText = "Connection lost. Reconnecting to AI...";
     });
 
     // Request Webcam
@@ -190,7 +203,9 @@
 
       video.onloadeddata = () => {
         video.play().then(() => {
-          feedbackText.innerText = "Position yourself in front of camera";
+          feedbackText.innerText = socketConnected
+            ? "Position yourself in front of camera"
+            : "Camera ready. Connecting to AI...";
           streamingActive = true;
           sendFrame();
         }).catch(e => {
@@ -214,16 +229,17 @@
 
       if (!isProcessing) {
         isProcessing = true;
-        // 320x240 capture minimizes CPU overhead on Render's shared vCPU
+        // 320x240 keeps upload and inference affordable on a Render web service.
         ctx.drawImage(video, 0, 0, 320, 240);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.32);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
 
         socket.emit('process_frame', {
           exercise_key: currentExercise,
           image: dataUrl
         });
 
-        // Watchdog: Unlocks loop after 2.0s if a frame packet is dropped
+        // A cold Render instance may need several seconds to load MediaPipe.
+        // Do not send a duplicate frame while it is still loading/processing.
         clearTimeout(watchdogTimer);
         watchdogTimer = setTimeout(() => {
           if (isProcessing) {
@@ -231,7 +247,7 @@
             isProcessing = false;
             sendFrame();
           }
-        }, 2000);
+        }, FRAME_TIMEOUT_MS);
       }
     }
 
@@ -248,8 +264,14 @@
       if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
 
       isProcessing = false;
-      // 90ms spacing lets Gevent handle heartbeat pings without starvation
-      setTimeout(sendFrame, 90);
+      setTimeout(sendFrame, FRAME_INTERVAL_MS);
+    });
+
+    socket.on('frame_error', data => {
+      clearTimeout(watchdogTimer);
+      isProcessing = false;
+      console.error("Pose processing error:", data.message);
+      feedbackText.innerText = data.message || "Pose processing failed. Check the server logs.";
     });
 
     function resetWorkout() {
