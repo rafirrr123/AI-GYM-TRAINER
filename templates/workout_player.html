@@ -197,10 +197,18 @@
     });
 
     // 2. Ping-Pong Frame Sender
+    // Robust Request-Response Loop
     function sendFrame() {
       if (!streamingActive) return;
 
-      if (!isProcessing && video.videoWidth > 0 && socket.connected) {
+      // 1. If video isn't ready or socket isn't connected yet, retry in 100ms
+      if (video.videoWidth === 0 || !socket.connected) {
+        setTimeout(sendFrame, 100);
+        return;
+      }
+
+      // 2. Send frame only if previous frame has completed
+      if (!isProcessing) {
         isProcessing = true;
         ctx.drawImage(video, 0, 0, 480, 360);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.4);
@@ -209,16 +217,32 @@
           exercise_key: currentExercise,
           image: dataUrl
         });
-      }
 
-      // Safety fallback: if no reply after 400ms, unlock and send next frame
-      setTimeout(() => {
-        if (isProcessing) {
-          isProcessing = false;
-          sendFrame();
-        }
-      }, 400);
+        // 3. Watchdog timeout: If server doesn't respond within 500ms, unlock and send next frame
+        setTimeout(() => {
+          if (isProcessing) {
+            console.warn("Frame response timed out, re-triggering sendFrame...");
+            isProcessing = false;
+            sendFrame();
+          }
+        }, 500);
+      }
     }
+
+    // 4. When the server replies with processed frame
+    socket.on('frame_result', data => {
+      if (data.image) {
+        feedDisplay.src = data.image;
+        feedDisplay.style.display = 'block';
+      }
+      if (data.count !== undefined) document.getElementById('rep_count').innerText = data.count;
+      if (data.stage !== undefined) document.getElementById('stage_val').innerText = data.stage;
+      if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
+
+      // Unlock and immediately send next frame
+      isProcessing = false;
+      sendFrame();
+    });
 
     // 3. Receive Processed Frame from Backend
     socket.on('frame_result', data => {
