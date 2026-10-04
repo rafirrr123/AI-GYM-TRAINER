@@ -163,12 +163,14 @@
     let streamingActive = false;
     let watchdogTimer = null;
     let socketConnected = false;
+    let useHttpFallback = false;
     const FRAME_TIMEOUT_MS = 15000;
     const FRAME_INTERVAL_MS = 250;
 
     socket.on('connect', () => {
       console.log("Socket connected with ID:", socket.id);
       socketConnected = true;
+      useHttpFallback = false;
       feedbackText.innerText = "Connected! Syncing with AI...";
       isProcessing = false;
       if (streamingActive) {
@@ -178,12 +180,14 @@
 
     socket.on('connect_error', (err) => {
       socketConnected = false;
+      useHttpFallback = true;
       console.error("Socket connection error:", err);
       feedbackText.innerText = "Reconnecting to server...";
     });
 
     socket.on('disconnect', reason => {
       socketConnected = false;
+      useHttpFallback = true;
       isProcessing = false;
       clearTimeout(watchdogTimer);
       console.warn("Socket disconnected:", reason);
@@ -222,7 +226,7 @@
     function sendFrame() {
       if (!streamingActive) return;
 
-      if (video.videoWidth === 0 || !socket.connected) {
+      if (video.videoWidth === 0) {
         setTimeout(sendFrame, 150);
         return;
       }
@@ -233,10 +237,14 @@
         ctx.drawImage(video, 0, 0, 320, 240);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
 
-        socket.emit('process_frame', {
-          exercise_key: currentExercise,
-          image: dataUrl
-        });
+        if (socket.connected && !useHttpFallback) {
+          socket.emit('process_frame', {
+            exercise_key: currentExercise,
+            image: dataUrl
+          });
+        } else {
+          sendFrameOverHttp(dataUrl);
+        }
 
         // A cold Render instance may need several seconds to load MediaPipe.
         // Do not send a duplicate frame while it is still loading/processing.
@@ -245,14 +253,14 @@
           if (isProcessing) {
             console.warn("Backend busy/frame dropped, retrying stream...");
             isProcessing = false;
+            useHttpFallback = true;
             sendFrame();
           }
         }, FRAME_TIMEOUT_MS);
       }
     }
 
-    // Processed frame returned from backend
-    socket.on('frame_result', data => {
+    function showFrameResult(data) {
       clearTimeout(watchdogTimer);
 
       if (data.image) {
@@ -265,6 +273,32 @@
 
       isProcessing = false;
       setTimeout(sendFrame, FRAME_INTERVAL_MS);
+    }
+
+    async function sendFrameOverHttp(dataUrl) {
+      try {
+        const response = await fetch('/api/process-frame', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exercise_key: currentExercise, image: dataUrl })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'Frame processing failed.');
+        }
+        showFrameResult(data);
+      } catch (err) {
+        clearTimeout(watchdogTimer);
+        isProcessing = false;
+        console.error('HTTP frame processing error:', err);
+        feedbackText.innerText = err.message || 'Could not reach the AI service.';
+        if (streamingActive) setTimeout(sendFrame, 1000);
+      }
+    }
+
+    // Processed frame returned from the fast Socket.IO transport.
+    socket.on('frame_result', data => {
+      showFrameResult(data);
     });
 
     socket.on('frame_error', data => {
@@ -272,6 +306,7 @@
       isProcessing = false;
       console.error("Pose processing error:", data.message);
       feedbackText.innerText = data.message || "Pose processing failed. Check the server logs.";
+      if (streamingActive) setTimeout(sendFrame, 1000);
     });
 
     function resetWorkout() {

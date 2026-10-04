@@ -322,6 +322,54 @@ def workout_session(exercise_key):
         mode=config["type"]
     )
 
+def process_frame_for_response(data):
+    """Return one annotated frame for the HTTP fallback transport."""
+    if not data or 'image' not in data or 'exercise_key' not in data:
+        return None, 'Invalid camera frame received.'
+
+    exercise_key = data['exercise_key']
+    config = DETECTOR_REGISTRY.get(exercise_key)
+    if not config:
+        return None, 'This workout is not available.'
+
+    try:
+        detector = get_or_switch_detector(exercise_key)
+        if detector is None:
+            raise RuntimeError('Unable to start the pose detector')
+
+        _, encoded = data['image'].split(',', 1)
+        frame = cv2.imdecode(
+            np.frombuffer(base64.b64decode(encoded), np.uint8), cv2.IMREAD_COLOR
+        )
+        if frame is None:
+            raise ValueError('Could not decode the camera frame')
+
+        res = detector.process(frame)
+        if config['type'] == 'dual' and len(res) == 5:
+            frame, left_count, left_stage, right_count, right_stage = res
+            count = min(left_count, right_count)
+            stage = f'L: {left_stage} | R: {right_stage}'
+            feedback = f'Left: {left_count} | Right: {right_count}'
+        elif config['type'] != 'dual' and len(res) == 4:
+            frame, count, stage, feedback = res
+        else:
+            frame = res[0]
+            count, stage, feedback = 0, 'READY', 'Tracking...'
+
+        _, buffer = cv2.imencode(
+            '.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35]
+        )
+        return {
+            'image': f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}",
+            'count': count,
+            'stage': str(stage).upper(),
+            'feedback': feedback,
+        }, None
+    except Exception:
+        app.logger.exception('Pose processing failed for %s', exercise_key)
+        return None, 'The pose detector could not process this frame. Check the Render logs for the server error.'
+
+
 @socketio.on('process_frame')
 def handle_generic_frame(data):
     if not data or 'image' not in data or 'exercise_key' not in data:
@@ -385,6 +433,15 @@ def handle_generic_frame(data):
         print(f"❌ Error in handle_generic_frame ({exercise_key}): {e}")
         import traceback
         traceback.print_exc()
+
+@app.route('/api/process-frame', methods=['POST'])
+def process_frame_http():
+    """Same-origin fallback when a hosted WebSocket cannot deliver frames."""
+    result, error = process_frame_for_response(request.get_json(silent=True))
+    if error:
+        return jsonify({'message': error}), 400
+    return jsonify(result)
+
 
 @socketio.on('reset_active_workout')
 def handle_generic_reset(data):
