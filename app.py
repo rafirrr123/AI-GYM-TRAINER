@@ -233,21 +233,15 @@ def exercises():
 
 @app.route('/bicepcurl')
 def bicepcurl():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return render_template('bicepcurl.html')
+    return redirect(url_for('workout_session', exercise_key='bicep_curls'))
 
 @app.route('/squat')
 def squat():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return render_template('squat.html')
+    return redirect(url_for('workout_session', exercise_key='squats'))
 
 @app.route('/pushup')
 def pushup():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return render_template('pushup.html')
+    return redirect(url_for('workout_session', exercise_key='pushups'))
 
 # ----------------- WORKOUT SAVE ENDPOINT -----------------
 
@@ -328,10 +322,12 @@ def handle_generic_frame(data):
     exercise_key = data['exercise_key']
     config = DETECTOR_REGISTRY.get(exercise_key)
     if not config:
+        print(f"⚠️ Unknown exercise key: {exercise_key}")
         return
 
     detector = get_or_switch_detector(exercise_key)
     if detector is None:
+        print(f"❌ Failed to instantiate detector for {exercise_key}")
         return
 
     try:
@@ -340,6 +336,7 @@ def handle_generic_frame(data):
         frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
 
         if frame is None:
+            print("⚠️ cv2.imdecode returned None")
             return
 
         if config["type"] == "dual":
@@ -350,7 +347,7 @@ def handle_generic_frame(data):
         else:
             frame, count, stage, feedback = detector.process(frame)
 
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
         img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
 
         emit('frame_result', {
@@ -360,7 +357,9 @@ def handle_generic_frame(data):
             'feedback': feedback
         })
     except Exception as e:
-        print(f"Error processing {exercise_key}:", e)
+        print(f"❌ Error processing frame for {exercise_key}: {e}")
+        import traceback
+        traceback.print_exc()
 
 @socketio.on('reset_active_workout')
 def handle_generic_reset(data):
