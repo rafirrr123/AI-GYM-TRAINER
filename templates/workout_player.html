@@ -138,13 +138,15 @@
     </button>
   </div>
 
-  <!-- Offscreen canvas with matched ID and 320x240 dimensions for low CPU consumption -->
+  <!-- Capture canvas sized to 320x240 for low CPU consumption on Render -->
   <canvas id="canvas" width="320" height="240" style="display: none;"></canvas>
 
   <script>
     const socket = io({
-      transports: ['websocket'],
-      upgrade: false
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
+      timeout: 10000
     });
 
     const currentExercise = "{{ exercise_key }}";
@@ -206,30 +208,30 @@
       if (!streamingActive) return;
 
       if (video.videoWidth === 0 || !socket.connected) {
-        setTimeout(sendFrame, 100);
+        setTimeout(sendFrame, 150);
         return;
       }
 
       if (!isProcessing) {
         isProcessing = true;
-        // Draw into 320x240 offscreen canvas
+        // 320x240 capture minimizes CPU overhead on Render's shared vCPU
         ctx.drawImage(video, 0, 0, 320, 240);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.4);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.32);
 
         socket.emit('process_frame', {
           exercise_key: currentExercise,
           image: dataUrl
         });
 
-        // Watchdog: Unlocks loop after 1.5 seconds if a frame packet drops
+        // Watchdog: Unlocks loop after 2.0s if a frame packet is dropped
         clearTimeout(watchdogTimer);
         watchdogTimer = setTimeout(() => {
           if (isProcessing) {
-            console.warn("Frame response timed out, resuming stream...");
+            console.warn("Backend busy/frame dropped, retrying stream...");
             isProcessing = false;
             sendFrame();
           }
-        }, 1500);
+        }, 2000);
       }
     }
 
@@ -246,8 +248,8 @@
       if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
 
       isProcessing = false;
-      // 60ms delay prevents CPU exhaustion on Render's shared vCPU
-      setTimeout(sendFrame, 60);
+      // 90ms spacing lets Gevent handle heartbeat pings without starvation
+      setTimeout(sendFrame, 90);
     });
 
     function resetWorkout() {

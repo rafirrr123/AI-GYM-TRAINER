@@ -1,5 +1,6 @@
 from gevent import monkey
 monkey.patch_all()
+import gevent
 
 import base64
 import cv2
@@ -317,38 +318,50 @@ def workout_session(exercise_key):
 @socketio.on('process_frame')
 def handle_generic_frame(data):
     if not data or 'image' not in data or 'exercise_key' not in data:
-        print("⚠️ Malformed frame packet")
         return
 
     exercise_key = data['exercise_key']
     config = DETECTOR_REGISTRY.get(exercise_key)
     if not config:
-        print(f"⚠️ Unknown exercise key: {exercise_key}")
         return
 
     detector = get_or_switch_detector(exercise_key)
     if detector is None:
-        print(f"❌ Could not load detector: {exercise_key}")
         return
 
     try:
+        # 1. Let Gevent flush WebSocket heartbeats
+        gevent.sleep(0)
+
         _, encoded = data['image'].split(',', 1)
         img_bytes = base64.b64decode(encoded)
         frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
 
         if frame is None:
-            print("⚠️ Failed cv2.imdecode")
             return
 
         if config["type"] == "dual":
-            frame, l_cnt, l_stg, r_cnt, r_stg = detector.process(frame)
-            count = min(l_cnt, r_cnt)
-            stage = f"L: {l_stg} | R: {r_stg}"
-            feedback = f"Left: {l_cnt} | Right: {r_cnt}"
+            res = detector.process(frame)
+            if len(res) == 5:
+                frame, l_cnt, l_stg, r_cnt, r_stg = res
+                count = min(l_cnt, r_cnt)
+                stage = f"L: {l_stg} | R: {r_stg}"
+                feedback = f"Left: {l_cnt} | Right: {r_cnt}"
+            else:
+                frame = res[0]
+                count, stage, feedback = 0, "READY", "Tracking..."
         else:
-            frame, count, stage, feedback = detector.process(frame)
+            res = detector.process(frame)
+            if len(res) == 4:
+                frame, count, stage, feedback = res
+            else:
+                frame = res[0]
+                count, stage, feedback = 0, "READY", "Tracking..."
 
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 40])
+        # 2. Yield again before image compression
+        gevent.sleep(0)
+
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35])
         img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
 
         emit('frame_result', {
@@ -357,10 +370,10 @@ def handle_generic_frame(data):
             'stage': str(stage).upper(),
             'feedback': feedback
         })
-        print(f"✅ Success: Frame emitted for {exercise_key}")
+        print(f"✅ Processed frame for {exercise_key} | Reps: {count}")
 
     except Exception as e:
-        print(f"❌ Exception in process_frame for {exercise_key}: {e}")
+        print(f"❌ Error in handle_generic_frame ({exercise_key}): {e}")
         import traceback
         traceback.print_exc()
 
