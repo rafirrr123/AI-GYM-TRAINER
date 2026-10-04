@@ -63,7 +63,7 @@
       overflow: hidden;
     }
 
-    /* Keep the webcam feed directly visible */
+    /* Live local webcam */
     #webcam {
       width: 100%;
       height: 100%;
@@ -71,7 +71,7 @@
       display: block;
     }
 
-    /* Processed MediaPipe overlay from server */
+    /* Processed skeleton overlay from backend */
     #feed-display {
       position: absolute;
       top: 0;
@@ -79,7 +79,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      display: none; /* revealed as soon as server responds */
+      display: none;
     }
 
     .feedback-box {
@@ -130,7 +130,7 @@
     <img id="feed-display" alt="Overlay Stream" />
   </div>
 
-  <div class="feedback-box" id="feedback_text">Initializing camera...</div>
+  <div class="feedback-box" id="feedback_text">Connecting to server...</div>
 
   <div class="bottom-bar">
     <button id="finish-btn" type="button" class="btn-finish" onclick="finishSession()">
@@ -138,14 +138,14 @@
     </button>
   </div>
 
-  <!-- Offscreen canvas for grabbing frames -->
-  <canvas id="capture_canvas" width="480" height="360" style="display: none;"></canvas>
+  <!-- Offscreen canvas with matched ID and 320x240 dimensions for low CPU consumption -->
+  <canvas id="canvas" width="320" height="240" style="display: none;"></canvas>
 
   <script>
     const socket = io({
-    transports: ['websocket'],
-    upgrade: false
-  });
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     const currentExercise = "{{ exercise_key }}";
     const currentTitle = "{{ title }}";
@@ -153,28 +153,29 @@
     const video = document.getElementById('webcam');
     const feedDisplay = document.getElementById('feed-display');
     const feedbackText = document.getElementById('feedback_text');
-    const canvas = document.getElementById('capture_canvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
     let localStream = null;
     let isProcessing = false;
     let streamingActive = false;
+    let watchdogTimer = null;
 
     socket.on('connect', () => {
-  console.log("Socket connected with ID:", socket.id);
-  feedbackText.innerText = "Connected! Syncing with AI...";
-  isProcessing = false;
-  if (streamingActive) {
-    sendFrame();
-  }
-});
+      console.log("Socket connected with ID:", socket.id);
+      feedbackText.innerText = "Connected! Syncing with AI...";
+      isProcessing = false;
+      if (streamingActive) {
+        sendFrame();
+      }
+    });
 
     socket.on('connect_error', (err) => {
       console.error("Socket connection error:", err);
       feedbackText.innerText = "Reconnecting to server...";
     });
 
-    // 1. Request Webcam with standard constraints
+    // Request Webcam
     navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
       audio: false
@@ -182,35 +183,37 @@
     .then(stream => {
       localStream = stream;
       video.srcObject = stream;
-      video.play().then(() => {
-        feedbackText.innerText = "Camera active. Syncing with AI...";
-        streamingActive = true;
-        // Start ping-pong frame loop
-        sendFrame();
-      }).catch(e => {
-        console.error("Video play failed:", e);
-      });
+      video.setAttribute("playsinline", true);
+      video.muted = true;
+
+      video.onloadeddata = () => {
+        video.play().then(() => {
+          feedbackText.innerText = "Position yourself in front of camera";
+          streamingActive = true;
+          sendFrame();
+        }).catch(e => {
+          console.error("Video play failed:", e);
+        });
+      };
     })
     .catch(err => {
       console.error("getUserMedia error:", err);
       feedbackText.innerText = "Camera access error: " + err.name;
     });
 
-    // 2. Ping-Pong Frame Sender
-    // Robust Request-Response Loop
+    // Throttled frame transmission loop
     function sendFrame() {
       if (!streamingActive) return;
 
-      // 1. If video isn't ready or socket isn't connected yet, retry in 100ms
       if (video.videoWidth === 0 || !socket.connected) {
         setTimeout(sendFrame, 100);
         return;
       }
 
-      // 2. Send frame only if previous frame has completed
       if (!isProcessing) {
         isProcessing = true;
-        ctx.drawImage(video, 0, 0, 480, 360);
+        // Draw into 320x240 offscreen canvas
+        ctx.drawImage(video, 0, 0, 320, 240);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.4);
 
         socket.emit('process_frame', {
@@ -218,19 +221,22 @@
           image: dataUrl
         });
 
-        // 3. Watchdog timeout: If server doesn't respond within 500ms, unlock and send next frame
-        setTimeout(() => {
+        // Watchdog: Unlocks loop after 1.5 seconds if a frame packet drops
+        clearTimeout(watchdogTimer);
+        watchdogTimer = setTimeout(() => {
           if (isProcessing) {
-            console.warn("Frame response timed out, re-triggering sendFrame...");
+            console.warn("Frame response timed out, resuming stream...");
             isProcessing = false;
             sendFrame();
           }
-        }, 500);
+        }, 1500);
       }
     }
 
-    // 4. When the server replies with processed frame
+    // Processed frame returned from backend
     socket.on('frame_result', data => {
+      clearTimeout(watchdogTimer);
+
       if (data.image) {
         feedDisplay.src = data.image;
         feedDisplay.style.display = 'block';
@@ -239,23 +245,9 @@
       if (data.stage !== undefined) document.getElementById('stage_val').innerText = data.stage;
       if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
 
-      // Unlock and immediately send next frame
       isProcessing = false;
-      sendFrame();
-    });
-
-    // 3. Receive Processed Frame from Backend
-    socket.on('frame_result', data => {
-      if (data.image) {
-        feedDisplay.src = data.image;
-        feedDisplay.style.display = 'block'; // Make overlay visible
-      }
-      if (data.count !== undefined) document.getElementById('rep_count').innerText = data.count;
-      if (data.stage !== undefined) document.getElementById('stage_val').innerText = data.stage;
-      if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
-
-      isProcessing = false;
-      sendFrame();
+      // 60ms delay prevents CPU exhaustion on Render's shared vCPU
+      setTimeout(sendFrame, 60);
     });
 
     function resetWorkout() {
@@ -270,6 +262,7 @@
 
     async function finishSession() {
       streamingActive = false;
+      clearTimeout(watchdogTimer);
       const finishBtn = document.getElementById('finish-btn');
       finishBtn.disabled = true;
       finishBtn.innerText = "Saving to Profile...";
