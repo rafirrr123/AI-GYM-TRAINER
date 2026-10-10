@@ -3,334 +3,1093 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }} | AI Gym</title>
+  <title>{{ title }} | AI Gym Studio</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 
+  <!-- MediaPipe Pose and Camera Utils for client-side zero-latency AI -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
   <style>
-    body {
-      background-color: #0f1115;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
+    :root {
+      --neon-green: #00ff88;
+      --neon-cyan: #00d0ff;
+      --bg-dark: #0a0c10;
+      --card-bg: #141820;
+      --border-color: #262c38;
+      --text-muted: #8b949e;
     }
 
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #151d2a 0%, #0a0c10 75%);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .studio-container {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Top Bar */
     .top-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      max-width: 640px;
-      margin: 0 auto 15px auto;
+      width: 100%;
+      padding: 4px 0;
     }
 
     .btn {
-      padding: 10px 20px;
-      font-size: 0.95rem;
-      font-weight: bold;
+      padding: 9px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
       border-radius: 8px;
       cursor: pointer;
       text-decoration: none;
       border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       transition: all 0.2s ease;
     }
 
-    .btn-back { background: #282f3d; color: #e0e0e0; border: 1px solid #444; }
-    .btn-back:hover { background: #3b4455; }
-    .btn-reset { background: #ff4d4f; color: #fff; }
-    .btn-reset:hover { background: #d9363e; }
-
-    .hud {
-      font-size: 1.3rem;
-      font-weight: bold;
-      margin-bottom: 15px;
-      padding: 12px 25px;
-      background: #181c24;
-      border: 1px solid #282f3d;
-      border-radius: 10px;
-      display: inline-block;
+    .btn-back {
+      background: #1c222e;
+      color: #e0e0e0;
+      border: 1px solid var(--border-color);
+    }
+    .btn-back:hover {
+      background: #283142;
+      color: #fff;
     }
 
-    .video-container {
-      position: relative;
+    .btn-icon-toggle {
+      background: #1c222e;
+      color: #e0e0e0;
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    .btn-icon-toggle:hover {
+      background: #283142;
+    }
+
+    .btn-reset {
+      background: rgba(255, 77, 79, 0.15);
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 77, 79, 0.35);
+    }
+    .btn-reset:hover {
+      background: rgba(255, 77, 79, 0.3);
+      color: #fff;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      color: var(--neon-green);
+      font-weight: 600;
+    }
+    .status-badge.fallback {
+      background: rgba(0, 208, 255, 0.1);
+      border-color: rgba(0, 208, 255, 0.3);
+      color: var(--neon-cyan);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      animation: pulse-dot 1.8s infinite;
+    }
+    @keyframes pulse-dot {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    /* Primary HUD */
+    .hud-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
       width: 100%;
-      max-width: 640px;
-      aspect-ratio: 4 / 3;
-      margin: 0 auto;
-      background: #000;
-      border: 2px solid #00ff88;
+    }
+
+    .hud-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
       overflow: hidden;
     }
 
-    /* Live local webcam */
-    #webcam {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    .hud-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-bottom: 2px;
     }
 
-    /* Processed skeleton overlay from backend */
-    #feed-display {
+    .hud-value {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--neon-green);
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      transition: transform 0.15s ease;
+    }
+    .hud-value.pulse {
+      transform: scale(1.2);
+      color: #ffffff;
+      text-shadow: 0 0 15px var(--neon-green);
+    }
+
+    .stage-pill {
+      display: inline-block;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--neon-cyan);
+      text-transform: uppercase;
+    }
+
+    /* Dual Arm HUD for Bicep Curls */
+    .dual-arm-hud {
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+      gap: 10px;
+      margin-top: 4px;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+    }
+    .arm-metric {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Viewport Container */
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border: 2px solid var(--neon-green);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 255, 136, 0.2);
+    }
+
+    /* The real-time camera is always smooth */
+    #webcam {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      display: none;
+      display: block;
+      transform: scaleX(-1);
     }
 
-    .feedback-box {
-      margin-top: 10px;
-      font-size: 1.1rem;
-      color: #00d0ff;
+    /* Transparent real-time canvas for skeleton overlays */
+    #overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: block;
+    }
+
+    /* Overlay visual feedback on rep increment */
+    .rep-flash {
+      position: absolute;
+      inset: 0;
+      border: 4px solid var(--neon-green);
+      border-radius: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .rep-flash.active {
+      opacity: 1;
+    }
+
+    /* Coaching Feedback Banner */
+    .feedback-banner {
+      width: 100%;
+      padding: 10px 16px;
+      background: rgba(0, 208, 255, 0.08);
+      border: 1px solid rgba(0, 208, 255, 0.25);
+      border-radius: 10px;
+      color: var(--neon-cyan);
+      font-size: 0.98rem;
       font-weight: 600;
-      min-height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
     }
 
+    /* Bottom Control Bar */
     .bottom-bar {
-      margin-top: 20px;
       display: flex;
+      gap: 12px;
       justify-content: center;
+      width: 100%;
+      margin-top: 4px;
     }
 
     .btn-finish {
-      background: linear-gradient(135deg, #238636, #2ea043);
+      background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
-      border: 1px solid #3fb950;
-      border-radius: 8px;
-      padding: 14px 32px;
-      font-size: 1.1rem;
-      font-weight: 700;
+      border: 1px solid #34d399;
+      border-radius: 10px;
+      padding: 14px 28px;
+      font-size: 1.05rem;
+      font-weight: 800;
       cursor: pointer;
+      flex: 1;
+      max-width: 380px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s ease;
+    }
+    .btn-finish:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    .btn-finish:disabled {
+      background: #283142;
+      border-color: #3b4455;
+      color: #8b949e;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Calibration instructions */
+    .tip-text {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
   </style>
 </head>
 <body>
 
-  <div class="top-bar">
-    <a href="/home/exercises" class="btn btn-back">&larr; Exercises</a>
-    <h3 style="margin: 0;">{{ title }}</h3>
-    <button type="button" class="btn btn-reset" onclick="resetWorkout()">Reset Reps</button>
+  <div class="studio-container">
+
+    <!-- Top Navigation & Settings Bar -->
+    <div class="top-bar">
+      <a href="/home/exercises" class="btn btn-back">
+        <i class="bi bi-arrow-left"></i> Exercises
+      </a>
+
+      <div>
+        <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">{{ title }}</h3>
+        <div id="ai_mode_badge" class="status-badge" style="margin-top: 3px;">
+          <span class="status-dot"></span>
+          <span id="ai_mode_text">Initializing AI Engine...</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 6px;">
+        <button id="sound_toggle" class="btn btn-icon-toggle" type="button" title="Toggle Rep Sound" onclick="toggleSound()">
+          <i class="bi bi-volume-up-fill" id="sound_icon"></i>
+        </button>
+        <button id="mirror_toggle" class="btn btn-icon-toggle" type="button" title="Toggle Mirror View" onclick="toggleMirror()">
+          <i class="bi bi-symmetry-vertical"></i>
+        </button>
+        <button type="button" class="btn btn-reset" onclick="resetCounter()" title="Reset Counter">
+          <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- HUD Reps & Stage Counter -->
+    <div class="hud-grid">
+      <div class="hud-card">
+        <span class="hud-label">Total Reps</span>
+        <div id="rep_count" class="hud-value">0</div>
+        {% if mode == 'dual' %}
+        <div class="dual-arm-hud">
+          <span class="arm-metric">L: <strong id="left_reps" style="color: var(--neon-green);">0</strong> (<span id="left_stage">down</span>)</span>
+          <span class="arm-metric">R: <strong id="right_reps" style="color: var(--neon-cyan);">0</strong> (<span id="right_stage">down</span>)</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="hud-card">
+        <span class="hud-label">Movement Phase</span>
+        <div id="stage_val" class="stage-pill">READY</div>
+        <div id="metric_val" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+          Stand inside frame
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera Viewport with Transparent Real-Time Overlay Canvas -->
+    <div class="video-viewport" id="viewport">
+      <video id="webcam" autoplay playsinline muted></video>
+      <canvas id="overlay-canvas"></canvas>
+      <div id="rep_flash" class="rep-flash"></div>
+    </div>
+
+    <!-- Coaching / Form Feedback Banner -->
+    <div class="feedback-banner" id="feedback_text">
+      <i class="bi bi-camera-video me-1"></i> Starting camera feed...
+    </div>
+
+    <!-- Save & Finish Session -->
+    <div class="bottom-bar">
+      <button id="finish-btn" type="button" class="btn-finish" onclick="finishSession()">
+        <i class="bi bi-check-circle-fill me-1"></i> Finish Workout & Save
+      </button>
+    </div>
+
+    <div class="tip-text">
+      💡 Pro tip: Position your device ~5-7 feet away so your full range of motion is visible.
+    </div>
+
   </div>
 
-  <div class="hud">
-    <span style="color: #00ff88; margin-right: 25px;">
-      Count: <span id="rep_count">0</span>
-    </span>
-    <span style="color: #2ea043;">
-      Stage: <span id="stage_val">READY</span>
-    </span>
-  </div>
-
-  <div class="video-container">
-    <video id="webcam" autoplay playsinline muted></video>
-    <img id="feed-display" alt="Overlay Stream" />
-  </div>
-
-  <div class="feedback-box" id="feedback_text">Connecting to server...</div>
-
-  <div class="bottom-bar">
-    <button id="finish-btn" type="button" class="btn-finish" onclick="finishSession()">
-      🏁 Finish Workout & Save
-    </button>
-  </div>
-
-  <!-- Capture canvas sized to 320x240 for low CPU consumption on Render -->
-  <canvas id="canvas" width="320" height="240" style="display: none;"></canvas>
+  <!-- Offscreen canvas for server fallback frame captures if ever required -->
+  <canvas id="offscreen-canvas" width="320" height="240" style="display: none;"></canvas>
 
   <script>
-    const socket = io({
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1000,
-      timeout: 10000
-    });
-
+    // Configuration from Flask server
     const currentExercise = "{{ exercise_key }}";
     const currentTitle = "{{ title }}";
+    const workoutMode = "{{ mode }}"; // "dual" or "single"
 
+    // DOM Elements
     const video = document.getElementById('webcam');
-    const feedDisplay = document.getElementById('feed-display');
-    const feedbackText = document.getElementById('feedback_text');
-    const canvas = document.getElementById('canvas');
+    const canvas = document.getElementById('overlay-canvas');
     const ctx = canvas.getContext('2d');
+    const repCountEl = document.getElementById('rep_count');
+    const stageValEl = document.getElementById('stage_val');
+    const metricValEl = document.getElementById('metric_val');
+    const feedbackTextEl = document.getElementById('feedback_text');
+    const aiModeTextEl = document.getElementById('ai_mode_text');
+    const aiModeBadgeEl = document.getElementById('ai_mode_badge');
+    const repFlashEl = document.getElementById('rep_flash');
+    const soundIconEl = document.getElementById('sound_icon');
 
+    // Dual-arm elements
+    const leftRepsEl = document.getElementById('left_reps');
+    const leftStageEl = document.getElementById('left_stage');
+    const rightRepsEl = document.getElementById('right_reps');
+    const rightStageEl = document.getElementById('right_stage');
+
+    // State Variables
     let localStream = null;
-    let isProcessing = false;
+    let cameraInstance = null;
+    let isMirrored = true;
+    let soundEnabled = true;
+    let clientAiReady = false;
+    let useServerFallback = false;
     let streamingActive = false;
-    let watchdogTimer = null;
-    let socketConnected = false;
-    let useHttpFallback = false;
-    const FRAME_TIMEOUT_MS = 15000;
-    const FRAME_INTERVAL_MS = 250;
 
-    socket.on('connect', () => {
-      console.log("Socket connected with ID:", socket.id);
-      socketConnected = true;
-      useHttpFallback = false;
-      feedbackText.innerText = "Connected! Syncing with AI...";
-      isProcessing = false;
-      if (streamingActive) {
-        sendFrame();
+    // Workout Tracking State
+    const trackerState = {
+      totalReps: 0,
+      stage: "READY",
+      feedback: "Stand straight to begin",
+      // Dual tracking (Bicep Curls)
+      leftReps: 0,
+      leftStage: "down",
+      rightReps: 0,
+      rightStage: "down",
+      // Plank timer
+      lastPlankTick: null,
+      plankSeconds: 0
+    };
+
+    // Web Audio synthesizer for rep chime
+    let audioCtx = null;
+    function playRepChime() {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.22);
+      } catch (e) {
+        console.warn("Audio chime failed:", e);
       }
-    });
+    }
 
-    socket.on('connect_error', (err) => {
-      socketConnected = false;
-      useHttpFallback = true;
-      console.error("Socket connection error:", err);
-      feedbackText.innerText = "Reconnecting to server...";
-    });
+    function triggerRepVisual() {
+      repCountEl.classList.add('pulse');
+      repFlashEl.classList.add('active');
+      setTimeout(() => {
+        repCountEl.classList.remove('pulse');
+        repFlashEl.classList.remove('active');
+      }, 300);
+    }
 
-    socket.on('disconnect', reason => {
-      socketConnected = false;
-      useHttpFallback = true;
-      isProcessing = false;
-      clearTimeout(watchdogTimer);
-      console.warn("Socket disconnected:", reason);
-      feedbackText.innerText = "Connection lost. Reconnecting to AI...";
-    });
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      soundIconEl.className = soundEnabled ? "bi bi-volume-up-fill" : "bi bi-volume-mute-fill";
+    }
 
-    // Request Webcam
-    navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-      audio: false
-    })
-    .then(stream => {
-      localStream = stream;
-      video.srcObject = stream;
-      video.setAttribute("playsinline", true);
-      video.muted = true;
+    function toggleMirror() {
+      isMirrored = !isMirrored;
+      video.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
+    }
 
-      video.onloadeddata = () => {
-        video.play().then(() => {
-          feedbackText.innerText = socketConnected
-            ? "Position yourself in front of camera"
-            : "Camera ready. Connecting to AI...";
-          streamingActive = true;
-          sendFrame();
-        }).catch(e => {
-          console.error("Video play failed:", e);
+    // Geometry Angle Helper (shoulder, elbow, wrist / hip, knee, ankle)
+    function calculateAngle(a, b, c) {
+      const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+      let angle = Math.abs(radians * 180.0 / Math.PI);
+      if (angle > 180.0) {
+        angle = 360.0 - angle;
+      }
+      return angle;
+    }
+
+    // MediaPipe Skeleton Connections
+    const SKELETON_CONNECTIONS = [
+      [11, 12], // Shoulders
+      [11, 13], [13, 15], // Left Arm
+      [12, 14], [14, 16], // Right Arm
+      [11, 23], [12, 24], [23, 24], // Torso
+      [23, 25], [25, 27], // Left Leg
+      [24, 26], [26, 28]  // Right Leg
+    ];
+
+    // Main Workout Logic Evaluator
+    function evaluatePose(lm) {
+      let activeAngles = [];
+      const prevReps = trackerState.totalReps;
+
+      switch (currentExercise) {
+        case "bicep_curls": {
+          const l_sh = lm[11], l_el = lm[13], l_wr = lm[15];
+          const r_sh = lm[12], r_el = lm[14], r_wr = lm[16];
+
+          const leftAngle = calculateAngle(l_sh, l_el, l_wr);
+          const rightAngle = calculateAngle(r_sh, r_el, r_wr);
+
+          // Left Arm Transition
+          if (leftAngle > 160) {
+            trackerState.leftStage = "down";
+          }
+          if (leftAngle < 35 && trackerState.leftStage === "down") {
+            trackerState.leftStage = "up";
+            trackerState.leftReps++;
+            playRepChime();
+          }
+
+          // Right Arm Transition
+          if (rightAngle > 160) {
+            trackerState.rightStage = "down";
+          }
+          if (rightAngle < 35 && trackerState.rightStage === "down") {
+            trackerState.rightStage = "up";
+            trackerState.rightReps++;
+            playRepChime();
+          }
+
+          trackerState.totalReps = Math.min(trackerState.leftReps, trackerState.rightReps);
+          trackerState.stage = `L: ${trackerState.leftStage.toUpperCase()} | R: ${trackerState.rightStage.toUpperCase()}`;
+          trackerState.feedback = `Left: ${trackerState.leftReps} | Right: ${trackerState.rightReps}`;
+
+          activeAngles.push(
+            { pt: l_el, val: leftAngle, label: "L" },
+            { pt: r_el, val: rightAngle, label: "R" }
+          );
+          metricValEl.innerText = `L: ${Math.round(leftAngle)}° | R: ${Math.round(rightAngle)}°`;
+          break;
+        }
+
+        case "squats": {
+          const l_hip = lm[23], l_kn = lm[25], l_ank = lm[27];
+          const r_hip = lm[24], r_kn = lm[26], r_ank = lm[28];
+
+          const l_angle = calculateAngle(l_hip, l_kn, l_ank);
+          const r_angle = calculateAngle(r_hip, r_kn, r_ank);
+          const avgKneeAngle = (l_angle + r_angle) / 2.0;
+
+          if (avgKneeAngle > 165) {
+            if (trackerState.stage === "down") {
+              trackerState.totalReps++;
+              trackerState.feedback = "Good rep! Stand tall";
+            }
+            trackerState.stage = "up";
+          } else if (avgKneeAngle <= 90) {
+            if (trackerState.stage === "up" || trackerState.stage === "READY") {
+              trackerState.stage = "down";
+              trackerState.feedback = "Drive up through heels!";
+            }
+          } else if (avgKneeAngle > 90 && avgKneeAngle < 165 && trackerState.stage === "down") {
+            trackerState.feedback = "Rise up completely";
+          }
+
+          activeAngles.push({ pt: l_kn, val: avgKneeAngle, label: "Knee" });
+          metricValEl.innerText = `Knee: ${Math.round(avgKneeAngle)}°`;
+          break;
+        }
+
+        case "pushups": {
+          const l_sh = lm[11], l_el = lm[13], l_wr = lm[15], l_hip = lm[23], l_kn = lm[25];
+          const r_sh = lm[12], r_el = lm[14], r_wr = lm[16], r_hip = lm[24], r_kn = lm[26];
+
+          const avgArm = (calculateAngle(l_sh, l_el, l_wr) + calculateAngle(r_sh, r_el, r_wr)) / 2.0;
+          const avgBody = (calculateAngle(l_sh, l_hip, l_kn) + calculateAngle(r_sh, r_hip, r_kn)) / 2.0;
+
+          if (avgBody < 140) {
+            trackerState.feedback = "Keep your hips straight!";
+          } else {
+            if (avgArm > 160) {
+              if (trackerState.stage === "down") {
+                trackerState.totalReps++;
+                trackerState.feedback = "Solid rep!";
+              }
+              trackerState.stage = "up";
+            } else if (avgArm <= 90) {
+              if (trackerState.stage === "up" || trackerState.stage === "READY") {
+                trackerState.stage = "down";
+                trackerState.feedback = "Push straight up!";
+              }
+            } else if (avgArm > 90 && avgArm < 160 && trackerState.stage === "down") {
+              trackerState.feedback = "Lock out at the top";
+            }
+          }
+
+          activeAngles.push({ pt: l_el, val: avgArm, label: "Arm" });
+          metricValEl.innerText = `Arm: ${Math.round(avgArm)}° | Back: ${Math.round(avgBody)}°`;
+          break;
+        }
+
+        case "shoulder_press": {
+          const l_sh = lm[11], l_el = lm[13], l_wr = lm[15];
+          const r_sh = lm[12], r_el = lm[14], r_wr = lm[16];
+          const avgArm = (calculateAngle(l_sh, l_el, l_wr) + calculateAngle(r_sh, r_el, r_wr)) / 2.0;
+
+          if (avgArm > 155) {
+            if (trackerState.stage === "down") {
+              trackerState.totalReps++;
+              trackerState.feedback = "Solid press! Lower with control";
+            }
+            trackerState.stage = "up";
+          } else if (avgArm < 95) {
+            if (trackerState.stage === "up" || trackerState.stage === "READY") {
+              trackerState.stage = "down";
+              trackerState.feedback = "Press directly overhead!";
+            }
+          }
+
+          activeAngles.push({ pt: l_el, val: avgArm, label: "Elbow" });
+          metricValEl.innerText = `Press: ${Math.round(avgArm)}°`;
+          break;
+        }
+
+        case "jumping_jacks": {
+          const l_wr = lm[15], r_wr = lm[16];
+          const l_sh = lm[11], r_sh = lm[12];
+          const l_ank = lm[27], r_ank = lm[28];
+
+          const handsOverhead = (l_wr.y < l_sh.y) && (r_wr.y < r_sh.y);
+          const feetSpread = Math.abs(l_ank.x - r_ank.x) > (Math.abs(l_sh.x - r_sh.x) * 1.3);
+
+          if (handsOverhead && feetSpread) {
+            if (trackerState.stage === "closed" || trackerState.stage === "READY") {
+              trackerState.totalReps++;
+              trackerState.stage = "open";
+              trackerState.feedback = "Keep the rhythm!";
+            }
+          } else if (!handsOverhead && !feetSpread) {
+            trackerState.stage = "closed";
+            trackerState.feedback = "Jump and spread arms wide";
+          }
+
+          metricValEl.innerText = handsOverhead ? "Hands: Overhead" : "Hands: Down";
+          break;
+        }
+
+        case "lateral_raises": {
+          const l_hip = lm[23], l_sh = lm[11], l_el = lm[13];
+          const r_hip = lm[24], r_sh = lm[12], r_el = lm[14];
+          const avgAngle = (calculateAngle(l_hip, l_sh, l_el) + calculateAngle(r_hip, r_sh, r_el)) / 2.0;
+
+          if (avgAngle >= 85) {
+            if (trackerState.stage === "down" || trackerState.stage === "READY") {
+              trackerState.totalReps++;
+              trackerState.feedback = "Good lift! Lower slowly";
+            }
+            trackerState.stage = "up";
+          } else if (avgAngle < 30) {
+            trackerState.stage = "down";
+            trackerState.feedback = "Raise arms to shoulder level";
+          }
+
+          activeAngles.push({ pt: l_sh, val: avgAngle, label: "Raise" });
+          metricValEl.innerText = `Raise: ${Math.round(avgAngle)}°`;
+          break;
+        }
+
+        case "lunges": {
+          const l_hip = lm[23], l_kn = lm[25], l_ank = lm[27];
+          const r_hip = lm[24], r_kn = lm[26], r_ank = lm[28];
+          const leadKnee = Math.min(calculateAngle(l_hip, l_kn, l_ank), calculateAngle(r_hip, r_kn, r_ank));
+
+          if (leadKnee <= 95) {
+            if (trackerState.stage === "up" || trackerState.stage === "READY") {
+              trackerState.stage = "down";
+              trackerState.feedback = "Push back up to standing";
+            }
+          } else if (leadKnee > 160) {
+            if (trackerState.stage === "down") {
+              trackerState.totalReps++;
+              trackerState.feedback = "Great rep!";
+            }
+            trackerState.stage = "up";
+          }
+
+          activeAngles.push({ pt: l_kn, val: leadKnee, label: "Knee" });
+          metricValEl.innerText = `Lead Knee: ${Math.round(leadKnee)}°`;
+          break;
+        }
+
+        case "high_knees": {
+          const l_hip = lm[23], r_hip = lm[24];
+          const l_kn = lm[25], r_kn = lm[26];
+          const kneeRaised = (l_kn.y <= l_hip.y) || (r_kn.y <= r_hip.y);
+
+          if (kneeRaised && (trackerState.stage === "down" || trackerState.stage === "READY")) {
+            trackerState.totalReps++;
+            trackerState.stage = "up";
+            trackerState.feedback = "Keep the pace up!";
+          } else if (!kneeRaised && (l_kn.y > l_hip.y + 0.1) && (r_kn.y > r_hip.y + 0.1)) {
+            trackerState.stage = "down";
+          }
+
+          metricValEl.innerText = kneeRaised ? "Knee: High" : "Knee: Down";
+          break;
+        }
+
+        case "side_bends": {
+          const l_sh = lm[11], l_hip = lm[23], l_kn = lm[25];
+          const r_sh = lm[12], r_hip = lm[24], r_kn = lm[26];
+          const minBend = Math.min(calculateAngle(l_sh, l_hip, l_kn), calculateAngle(r_sh, r_hip, r_kn));
+
+          if (minBend <= 145 && (trackerState.stage === "center" || trackerState.stage === "READY")) {
+            trackerState.stage = "bent";
+            trackerState.totalReps++;
+            trackerState.feedback = "Good stretch! Return to center";
+          } else if (minBend > 165 && trackerState.stage === "bent") {
+            trackerState.stage = "center";
+            trackerState.feedback = "Bend toward the other side";
+          }
+
+          activeAngles.push({ pt: l_hip, val: minBend, label: "Bend" });
+          metricValEl.innerText = `Bend: ${Math.round(minBend)}°`;
+          break;
+        }
+
+        case "plank_hold": {
+          const l_sh = lm[11], l_hip = lm[23], l_ank = lm[27];
+          const bodyAngle = calculateAngle(l_sh, l_hip, l_ank);
+          const now = Date.now();
+
+          if (bodyAngle >= 155 && bodyAngle <= 180) {
+            trackerState.stage = "holding";
+            trackerState.feedback = "Good form! Keep holding";
+            if (!trackerState.lastPlankTick) trackerState.lastPlankTick = now;
+            if (now - trackerState.lastPlankTick >= 1000) {
+              trackerState.totalReps += 1;
+              trackerState.lastPlankTick = now;
+              playRepChime();
+            }
+          } else {
+            trackerState.stage = "paused";
+            trackerState.lastPlankTick = now;
+            trackerState.feedback = bodyAngle < 155 ? "Hips sagging! Raise core" : "Hips too high! Align straight";
+          }
+
+          activeAngles.push({ pt: l_hip, val: bodyAngle, label: "Angle" });
+          metricValEl.innerText = `Body: ${Math.round(bodyAngle)}° | ${trackerState.totalReps}s`;
+          break;
+        }
+      }
+
+      if (trackerState.totalReps > prevReps) {
+        playRepChime();
+        triggerRepVisual();
+      }
+
+      // Update HUD elements
+      repCountEl.innerText = trackerState.totalReps;
+      stageValEl.innerText = trackerState.stage;
+      feedbackTextEl.innerHTML = `<i class="bi bi-activity me-1"></i> ${trackerState.feedback}`;
+
+      if (workoutMode === 'dual') {
+        if (leftRepsEl) leftRepsEl.innerText = trackerState.leftReps;
+        if (leftStageEl) leftStageEl.innerText = trackerState.leftStage;
+        if (rightRepsEl) rightRepsEl.innerText = trackerState.rightReps;
+        if (rightStageEl) rightStageEl.innerText = trackerState.rightStage;
+      }
+
+      return activeAngles;
+    }
+
+    // High-performance canvas drawing
+    function renderOverlay(landmarks, activeAngles) {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (!landmarks || landmarks.length === 0) return;
+
+      // Coordinate converter that handles mirroring accurately
+      function toScreen(pt) {
+        return {
+          x: isMirrored ? (1 - pt.x) * w : pt.x * w,
+          y: pt.y * h
+        };
+      }
+
+      // Draw Glowing Skeleton Lines
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = '#00ff88';
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 8;
+      ctx.lineCap = 'round';
+
+      SKELETON_CONNECTIONS.forEach(([i1, i2]) => {
+        const pt1 = landmarks[i1];
+        const pt2 = landmarks[i2];
+        if (pt1 && pt2 && (pt1.visibility === undefined || pt1.visibility > 0.45) && (pt2.visibility === undefined || pt2.visibility > 0.45)) {
+          const s1 = toScreen(pt1);
+          const s2 = toScreen(pt2);
+          ctx.beginPath();
+          ctx.moveTo(s1.x, s1.y);
+          ctx.lineTo(s2.x, s2.y);
+          ctx.stroke();
+        }
+      });
+      ctx.shadowBlur = 0;
+
+      // Draw Keypoint Circles
+      landmarks.forEach((pt, idx) => {
+        if (idx >= 11 && idx <= 28 && (pt.visibility === undefined || pt.visibility > 0.45)) {
+          const s = toScreen(pt);
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#00d0ff';
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+        }
+      });
+
+      // Draw Real-Time Angle Badges near active joints
+      if (activeAngles && activeAngles.length > 0) {
+        ctx.font = 'bold 12px sans-serif';
+        activeAngles.forEach(item => {
+          if (!item.pt) return;
+          const s = toScreen(item.pt);
+          const text = `${Math.round(item.val)}°`;
+          const textWidth = ctx.measureText(text).width;
+
+          const boxX = s.x + 12;
+          const boxY = s.y - 10;
+
+          // Draw pill background
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(boxX - 4, boxY - 12, textWidth + 8, 18, 5);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Text
+          ctx.fillStyle = '#00ff88';
+          ctx.fillText(text, boxX, boxY + 1);
         });
-      };
-    })
-    .catch(err => {
-      console.error("getUserMedia error:", err);
-      feedbackText.innerText = "Camera access error: " + err.name;
-    });
+      }
+    }
 
-    // Throttled frame transmission loop
-    function sendFrame() {
+    // MediaPipe Pose Callback
+    function onPoseResults(results) {
       if (!streamingActive) return;
 
-      if (video.videoWidth === 0) {
-        setTimeout(sendFrame, 150);
+      // Ensure canvas matches video aspect ratio and resolution
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+      }
+
+      if (results.poseLandmarks) {
+        const activeAngles = evaluatePose(results.poseLandmarks);
+        renderOverlay(results.poseLandmarks, activeAngles);
+      } else {
+        renderOverlay(null, null);
+        feedbackTextEl.innerHTML = `<i class="bi bi-person-exclamation me-1"></i> Step back so your body is in camera frame`;
+      }
+    }
+
+    // Initialize Camera & Client-Side MediaPipe AI
+    async function startCameraAndAi() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: "user"
+          },
+          audio: false
+        });
+
+        localStream = stream;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true);
+        video.muted = true;
+        await video.play();
+
+        streamingActive = true;
+        feedbackTextEl.innerHTML = `<i class="bi bi-cpu me-1"></i> Calibrating AI model...`;
+
+        // Check if MediaPipe Pose class is available from CDN
+        if (typeof Pose !== 'undefined') {
+          const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          });
+
+          pose.setOptions({
+            modelComplexity: 0, // 0 = Blazing fast 60 FPS in browsers/mobile
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+
+          pose.onResults(onPoseResults);
+
+          // Use Camera utility from MediaPipe for ultra-smooth capture
+          if (typeof Camera !== 'undefined') {
+            cameraInstance = new Camera(video, {
+              onFrame: async () => {
+                if (streamingActive) {
+                  await pose.send({ image: video });
+                }
+              },
+              width: 640,
+              height: 480
+            });
+            await cameraInstance.start();
+          } else {
+            // Native requestAnimationFrame fallback
+            async function frameLoop() {
+              if (streamingActive && video.readyState >= 2) {
+                await pose.send({ image: video });
+              }
+              if (streamingActive) requestAnimationFrame(frameLoop);
+            }
+            requestAnimationFrame(frameLoop);
+          }
+
+          clientAiReady = true;
+          aiModeTextEl.innerText = "⚡ Real-Time AI (60 FPS)";
+          aiModeBadgeEl.classList.remove('fallback');
+          feedbackTextEl.innerHTML = `<i class="bi bi-check2-circle text-success me-1"></i> Ready! Begin your workout`;
+
+        } else {
+          throw new Error("MediaPipe Pose script not loaded");
+        }
+
+      } catch (err) {
+        console.warn("Client-side MediaPipe unavailable, switching to server fallback:", err);
+        activateServerFallback();
+      }
+    }
+
+    // Reset Counter Action
+    function resetCounter() {
+      trackerState.totalReps = 0;
+      trackerState.leftReps = 0;
+      trackerState.rightReps = 0;
+      trackerState.stage = "READY";
+      trackerState.leftStage = "down";
+      trackerState.rightStage = "down";
+      trackerState.feedback = "Counter reset. Stand straight to start";
+
+      repCountEl.innerText = 0;
+      stageValEl.innerText = "READY";
+      feedbackTextEl.innerHTML = `<i class="bi bi-arrow-counterclockwise me-1"></i> Counter reset`;
+
+      if (workoutMode === 'dual') {
+        if (leftRepsEl) leftRepsEl.innerText = 0;
+        if (leftStageEl) leftStageEl.innerText = "down";
+        if (rightRepsEl) rightRepsEl.innerText = 0;
+        if (rightStageEl) rightStageEl.innerText = "down";
+      }
+
+      if (useServerFallback && typeof socket !== 'undefined') {
+        socket.emit('reset_active_workout', { exercise_key: currentExercise });
+      }
+    }
+
+    // ----------------- RESILIENT SERVER FALLBACK -----------------
+    let socket = null;
+    let fallbackTimer = null;
+    let isSendingFallbackFrame = false;
+
+    function activateServerFallback() {
+      useServerFallback = true;
+      aiModeTextEl.innerText = "☁️ Cloud Server Fallback";
+      aiModeBadgeEl.classList.add('fallback');
+      feedbackTextEl.innerHTML = `<i class="bi bi-cloud-arrow-up me-1"></i> Connected to Cloud AI service`;
+
+      if (typeof io !== 'undefined') {
+        socket = io({
+          transports: ['websocket', 'polling'],
+          reconnectionAttempts: 10,
+          timeout: 8000
+        });
+
+        socket.on('connect', () => {
+          console.log("Fallback socket connected");
+          sendFallbackLoop();
+        });
+
+        socket.on('frame_result', (data) => {
+          isSendingFallbackFrame = false;
+          if (data.count !== undefined) {
+            if (data.count > trackerState.totalReps) {
+              playRepChime();
+              triggerRepVisual();
+            }
+            trackerState.totalReps = data.count;
+            repCountEl.innerText = data.count;
+          }
+          if (data.stage) stageValEl.innerText = data.stage;
+          if (data.feedback) feedbackTextEl.innerHTML = `<i class="bi bi-activity me-1"></i> ${data.feedback}`;
+          setTimeout(sendFallbackLoop, 150);
+        });
+
+        socket.on('frame_error', (data) => {
+          isSendingFallbackFrame = false;
+          setTimeout(sendFallbackLoop, 500);
+        });
+      }
+    }
+
+    function sendFallbackLoop() {
+      if (!streamingActive || isSendingFallbackFrame || !useServerFallback) return;
+      if (video.readyState < 2 || video.videoWidth === 0) {
+        setTimeout(sendFallbackLoop, 200);
         return;
       }
 
-      if (!isProcessing) {
-        isProcessing = true;
-        // 320x240 keeps upload and inference affordable on a Render web service.
-        ctx.drawImage(video, 0, 0, 320, 240);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      isSendingFallbackFrame = true;
+      const offCanvas = document.getElementById('offscreen-canvas');
+      const offCtx = offCanvas.getContext('2d');
+      offCtx.drawImage(video, 0, 0, 320, 240);
+      const dataUrl = offCanvas.toDataURL('image/jpeg', 0.5);
 
-        if (socket.connected && !useHttpFallback) {
-          socket.emit('process_frame', {
-            exercise_key: currentExercise,
-            image: dataUrl
-          });
-        } else {
-          sendFrameOverHttp(dataUrl);
-        }
-
-        // A cold Render instance may need several seconds to load MediaPipe.
-        // Do not send a duplicate frame while it is still loading/processing.
-        clearTimeout(watchdogTimer);
-        watchdogTimer = setTimeout(() => {
-          if (isProcessing) {
-            console.warn("Backend busy/frame dropped, retrying stream...");
-            isProcessing = false;
-            useHttpFallback = true;
-            sendFrame();
-          }
-        }, FRAME_TIMEOUT_MS);
-      }
-    }
-
-    function showFrameResult(data) {
-      clearTimeout(watchdogTimer);
-
-      if (data.image) {
-        feedDisplay.src = data.image;
-        feedDisplay.style.display = 'block';
-      }
-      if (data.count !== undefined) document.getElementById('rep_count').innerText = data.count;
-      if (data.stage !== undefined) document.getElementById('stage_val').innerText = data.stage;
-      if (data.feedback) document.getElementById('feedback_text').innerText = data.feedback;
-
-      isProcessing = false;
-      setTimeout(sendFrame, FRAME_INTERVAL_MS);
-    }
-
-    async function sendFrameOverHttp(dataUrl) {
-      try {
-        const response = await fetch('/api/process-frame', {
+      if (socket && socket.connected) {
+        socket.emit('process_frame', {
+          exercise_key: currentExercise,
+          image: dataUrl
+        });
+      } else {
+        // HTTP Fetch Fallback
+        fetch('/api/process-frame', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ exercise_key: currentExercise, image: dataUrl })
+        })
+        .then(r => r.json())
+        .then(data => {
+          isSendingFallbackFrame = false;
+          if (data.count !== undefined) {
+            trackerState.totalReps = data.count;
+            repCountEl.innerText = data.count;
+          }
+          if (data.stage) stageValEl.innerText = data.stage;
+          if (data.feedback) feedbackTextEl.innerHTML = `<i class="bi bi-activity me-1"></i> ${data.feedback}`;
+          setTimeout(sendFallbackLoop, 150);
+        })
+        .catch(() => {
+          isSendingFallbackFrame = false;
+          setTimeout(sendFallbackLoop, 1000);
         });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || 'Frame processing failed.');
-        }
-        showFrameResult(data);
-      } catch (err) {
-        clearTimeout(watchdogTimer);
-        isProcessing = false;
-        console.error('HTTP frame processing error:', err);
-        feedbackText.innerText = err.message || 'Could not reach the AI service.';
-        if (streamingActive) setTimeout(sendFrame, 1000);
       }
     }
 
-    // Processed frame returned from the fast Socket.IO transport.
-    socket.on('frame_result', data => {
-      showFrameResult(data);
-    });
-
-    socket.on('frame_error', data => {
-      clearTimeout(watchdogTimer);
-      isProcessing = false;
-      console.error("Pose processing error:", data.message);
-      feedbackText.innerText = data.message || "Pose processing failed. Check the server logs.";
-      if (streamingActive) setTimeout(sendFrame, 1000);
-    });
-
-    function resetWorkout() {
-      socket.emit('reset_active_workout', { exercise_key: currentExercise });
-    }
-
-    socket.on('workout_reset', data => {
-      document.getElementById('rep_count').innerText = 0;
-      document.getElementById('stage_val').innerText = data.stage;
-      document.getElementById('feedback_text').innerText = data.feedback;
-    });
-
+    // Finish Workout & Persist to TiDB
     async function finishSession() {
       streamingActive = false;
-      clearTimeout(watchdogTimer);
       const finishBtn = document.getElementById('finish-btn');
       finishBtn.disabled = true;
-      finishBtn.innerText = "Saving to Profile...";
+      finishBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Saving to Profile...`;
 
+      // Stop camera hardware
+      if (cameraInstance && cameraInstance.stop) {
+        try { cameraInstance.stop(); } catch (e) {}
+      }
       if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+        localStream.getTracks().forEach(t => t.stop());
       }
 
-      const totalReps = parseInt(document.getElementById('rep_count').innerText) || 0;
+      const totalReps = trackerState.totalReps || 0;
+      const leftReps = trackerState.leftReps || totalReps;
+      const rightReps = trackerState.rightReps || totalReps;
 
       try {
         await fetch('/save_workout', {
@@ -339,16 +1098,21 @@
           body: JSON.stringify({
             exercise: currentTitle,
             total_reps: totalReps,
-            l_cnt: totalReps,
-            r_cnt: totalReps
+            l_cnt: leftReps,
+            r_cnt: rightReps
           })
         });
       } catch (err) {
-        console.error("Save error:", err);
+        console.error("Failed to save workout:", err);
       }
 
       window.location.href = '/home';
     }
+
+    // Boot on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      startCameraAndAi();
+    });
   </script>
 </body>
 </html>

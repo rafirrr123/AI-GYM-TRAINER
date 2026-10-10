@@ -97,13 +97,13 @@ def loging():
     if not username or not password:
         return render_template("login.html", error="Please enter both username and password")
 
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT id, username, password_hash FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if user and check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
@@ -113,6 +113,9 @@ def loging():
             return render_template("login.html", error="Invalid username or password")
     except mysql.connector.Error as err:
         return render_template("login.html", error=f"Database error: {err}")
+    finally:
+        if conn:
+            conn.close()
 
 @app.route("/signup", methods=["GET"])
 def signup():
@@ -126,6 +129,7 @@ def signing():
     if not username or not password:
         return render_template("signup.html", error="Fields cannot be empty")
 
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -133,18 +137,18 @@ def signing():
         cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
         if cursor.fetchone():
             cursor.close()
-            conn.close()
             return render_template("signup.html", error="Username already exists. Please pick another.")
 
         hashed_pw = generate_password_hash(password)
         cursor.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, hashed_pw))
         conn.commit()
-
         cursor.close()
-        conn.close()
         return redirect(url_for("tutorial"))
     except mysql.connector.Error as err:
         return render_template("signup.html", error=f"Database error: {err}")
+    finally:
+        if conn:
+            conn.close()
 
 @app.route("/logout")
 def logout():
@@ -165,52 +169,55 @@ def home():
     user_id = session['user_id']
     username = session.get('username', 'Athlete')
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
-        SELECT COALESCE(SUM(total_reps), 0) AS lifetime_reps
-        FROM workout_history
-        WHERE user_id = %s
-    """, (user_id,))
-    lifetime_reps = cursor.fetchone()['lifetime_reps']
+        cursor.execute("""
+            SELECT COALESCE(SUM(total_reps), 0) AS lifetime_reps
+            FROM workout_history
+            WHERE user_id = %s
+        """, (user_id,))
+        lifetime_reps = cursor.fetchone()['lifetime_reps']
 
-    cursor.execute("""
-        SELECT DISTINCT DATE(completed_at) AS workout_date
-        FROM workout_history
-        WHERE user_id = %s
-        ORDER BY workout_date DESC
-    """, (user_id,))
-    date_rows = cursor.fetchall()
+        cursor.execute("""
+            SELECT DISTINCT DATE(completed_at) AS workout_date
+            FROM workout_history
+            WHERE user_id = %s
+            ORDER BY workout_date DESC
+        """, (user_id,))
+        date_rows = cursor.fetchall()
 
-    total_active_days = len(date_rows)
+        total_active_days = len(date_rows)
 
-    streak = 0
-    if date_rows:
-        today = date.today()
-        yesterday = today - timedelta(days=1)
-        latest_date = date_rows[0]['workout_date']
+        streak = 0
+        if date_rows:
+            today = date.today()
+            yesterday = today - timedelta(days=1)
+            latest_date = date_rows[0]['workout_date']
 
-        if latest_date in (today, yesterday):
-            expected = latest_date
-            for row in date_rows:
-                if row['workout_date'] == expected:
-                    streak += 1
-                    expected -= timedelta(days=1)
-                else:
-                    break
+            if latest_date in (today, yesterday):
+                expected = latest_date
+                for row in date_rows:
+                    if row['workout_date'] == expected:
+                        streak += 1
+                        expected -= timedelta(days=1)
+                    else:
+                        break
 
-    cursor.execute("""
-        SELECT exercise_name, left_reps, right_reps, total_reps, completed_at
-        FROM workout_history
-        WHERE user_id = %s
-        ORDER BY completed_at DESC
-        LIMIT 6
-    """, (user_id,))
-    recent_workouts = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+        cursor.execute("""
+            SELECT exercise_name, left_reps, right_reps, total_reps, completed_at
+            FROM workout_history
+            WHERE user_id = %s
+            ORDER BY completed_at DESC
+            LIMIT 6
+        """, (user_id,))
+        recent_workouts = cursor.fetchall()
+        cursor.close()
+    finally:
+        if conn:
+            conn.close()
 
     return render_template(
         "home.html",
@@ -270,37 +277,41 @@ def save_workout():
 
     if final_reps > 0:
         user_id = session['user_id']
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("""
-            SELECT id, left_reps, right_reps, total_reps 
-            FROM workout_history 
-            WHERE user_id = %s 
-              AND exercise_name = %s 
-              AND DATE(completed_at) = CURDATE()
-            LIMIT 1
-        """, (user_id, exercise))
-        existing_row = cursor.fetchone()
-
-        if existing_row:
             cursor.execute("""
-                UPDATE workout_history 
-                SET left_reps = left_reps + %s,
-                    right_reps = right_reps + %s,
-                    total_reps = total_reps + %s,
-                    completed_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (l_cnt, r_cnt, final_reps, existing_row['id']))
-        else:
-            cursor.execute("""
-                INSERT INTO workout_history (user_id, exercise_name, left_reps, right_reps, total_reps)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, exercise, l_cnt, r_cnt, final_reps))
+                SELECT id, left_reps, right_reps, total_reps 
+                FROM workout_history 
+                WHERE user_id = %s 
+                  AND exercise_name = %s 
+                  AND DATE(completed_at) = CURDATE()
+                LIMIT 1
+            """, (user_id, exercise))
+            existing_row = cursor.fetchone()
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            if existing_row:
+                cursor.execute("""
+                    UPDATE workout_history 
+                    SET left_reps = left_reps + %s,
+                        right_reps = right_reps + %s,
+                        total_reps = total_reps + %s,
+                        completed_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (l_cnt, r_cnt, final_reps, existing_row['id']))
+            else:
+                cursor.execute("""
+                    INSERT INTO workout_history (user_id, exercise_name, left_reps, right_reps, total_reps)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (user_id, exercise, l_cnt, r_cnt, final_reps))
+
+            conn.commit()
+            cursor.close()
+        finally:
+            if conn:
+                conn.close()
 
     return jsonify({"status": "saved", "paired_reps": final_reps})
 
@@ -356,15 +367,18 @@ def process_frame_for_response(data):
             frame = res[0]
             count, stage, feedback = 0, 'READY', 'Tracking...'
 
-        _, buffer = cv2.imencode(
-            '.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35]
-        )
-        return {
-            'image': f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}",
+        response_payload = {
             'count': count,
             'stage': str(stage).upper(),
             'feedback': feedback,
-        }, None
+        }
+        if data.get('include_image', False):
+            _, buffer = cv2.imencode(
+                '.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35]
+            )
+            response_payload['image'] = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
+
+        return response_payload, None
     except Exception:
         app.logger.exception('Pose processing failed for %s', exercise_key)
         return None, 'The pose detector could not process this frame. Check the Render logs for the server error.'
@@ -383,8 +397,6 @@ def handle_generic_frame(data):
         return
 
     try:
-        # Model loading happens lazily. Keeping it inside this block means the
-        # browser receives a useful error instead of waiting forever on failure.
         detector = get_or_switch_detector(exercise_key)
         if detector is None:
             raise RuntimeError("Unable to start the pose detector")
@@ -414,15 +426,17 @@ def handle_generic_frame(data):
                 frame = res[0]
                 count, stage, feedback = 0, "READY", "Tracking..."
 
-        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35])
-        img_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-
-        emit('frame_result', {
-            'image': img_base64,
+        response_payload = {
             'count': count,
             'stage': str(stage).upper(),
             'feedback': feedback
-        })
+        }
+
+        if data.get('include_image', False):
+            _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 35])
+            response_payload['image'] = f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
+
+        emit('frame_result', response_payload)
         print(f"✅ Processed frame for {exercise_key} | Reps: {count}")
 
     except Exception as e:
